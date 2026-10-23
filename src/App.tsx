@@ -1,4 +1,11 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ReactNode,
+  type CSSProperties,
+} from 'react';
 import {
   ArrowUpRight,
   ArrowRight,
@@ -79,6 +86,8 @@ import {
 import { api, post, download, ApiError, authHeaders } from './api';
 import { Stadium } from './components/Stadium';
 import { StandaloneBar } from './components/StandaloneBar';
+import { AutomationPanel, OpenAIConnection } from './components/AutomationPanel';
+import { automationView } from '../shared/automation';
 const standalone = import.meta.env.VITE_STANDALONE === '1';
 
 type Page = 'home' | 'clubs' | 'studio' | 'cameras' | 'variations' | 'assets' | 'settings';
@@ -266,6 +275,30 @@ function AssetImage({
     <div className="image-placeholder">
       <ImageIcon />
     </div>
+  );
+}
+
+function SheetPreview({ asset, cell }: { asset: Asset; cell: number }) {
+  return (
+    <div
+      className="sheet-cell"
+      style={
+        {
+          '--cell-column': (cell - 1) % 2,
+          '--cell-row': Math.floor((cell - 1) / 2),
+          aspectRatio: `${asset.width * 5} / ${asset.height * 2}`,
+        } as CSSProperties
+      }
+    >
+      <AssetImage asset={asset} className="sheet-cell-image" />
+    </div>
+  );
+}
+function previewAsset(p: Project, c: Candidate) {
+  const usable = accepted(automationView(p), sheetCode(c.batch, c.sheet));
+  if (usable) return p.assets.find((a) => a.id === usable.id);
+  return p.assets.findLast(
+    (a) => a.code === sheetCode(c.batch, c.sheet) && a.status !== 'rejected',
   );
 }
 
@@ -781,6 +814,11 @@ export default function App() {
                   project={project}
                   selected={selected}
                   busy={busy}
+                  configured={!!status?.provider.configured}
+                  onAutomationUpdate={(p, jobs) => {
+                    setProject(p);
+                    setJobs(jobs);
+                  }}
                   onFacts={() => setFactsOpen(true)}
                   onUpload={upload}
                   onReview={setReview}
@@ -959,14 +997,14 @@ export default function App() {
         <Modal title={`${candidate.id} · ${candidate.name}`} onClose={closeCandidate} wide>
           <div className="candidate-detail">
             <div>
-              {accepted(project, sheetCode(candidate.batch, candidate.sheet)) ? (
+              {previewAsset(project, candidate) ? (
                 <>
-                  <AssetImage
-                    asset={accepted(project, sheetCode(candidate.batch, candidate.sheet))!}
-                    className="candidate-sheet"
-                  />
+                  <SheetPreview asset={previewAsset(project, candidate)!} cell={candidate.cell} />
                   <span className="diagram-label static">
-                    Kabul edilmiş kolaj · seçilen hücre: {candidate.cell}
+                    Gerçek kolaj önizlemesi · hücre {candidate.cell} ·{' '}
+                    {previewAsset(project, candidate)!.status === 'accepted'
+                      ? 'Kabul edilmiş'
+                      : 'Kontrol bekliyor'}
                   </span>
                 </>
               ) : (
@@ -1005,8 +1043,9 @@ export default function App() {
           <div className="callout">
             <ShieldCheck size={18} />
             <span>
-              Tasarım seçimi, bu serideki 10 kolajın tamamı üretildikten ve kalite kontrolünden
-              geçtikten sonra açılır. Şema, seçilecek görselin yerine geçmez.
+              {standalone
+                ? 'Tasarım seçimi, serinin 10 kolajı kalite kontrolünden geçince açılır.'
+                : 'Üretilmiş gerçek önizlemeden tasarımını seç. Bu seçimden sonra otomatik görsel ve video akışını başlatabilirsin; görsellerin kalite kontrolü ayrı tutulur.'}
             </span>
           </div>
           <div className="modal-actions">
@@ -1022,13 +1061,21 @@ export default function App() {
             </button>
             <button
               className="button primary"
-              disabled={busy || !!selectionBlockers(project, candidate).length}
+              disabled={
+                busy ||
+                (standalone
+                  ? !!selectionBlockers(project, candidate).length
+                  : !accepted(automationView(project), sheetCode(candidate.batch, candidate.sheet)))
+              }
               onClick={() =>
                 run(
                   () =>
-                    post<Project>(`/api/projects/${project.id}/select`, {
-                      candidateId: candidate.id,
-                    }),
+                    post<Project>(
+                      `/api/projects/${project.id}/${standalone ? 'select' : 'select-preview'}`,
+                      {
+                        candidateId: candidate.id,
+                      },
+                    ),
                   (p) => {
                     setProject(p);
                     setCandidate(null);
@@ -1553,6 +1600,8 @@ function Studio({
   onSave,
   jobs,
   onCancel,
+  configured,
+  onAutomationUpdate,
 }: {
   project: Project;
   selected?: Candidate;
@@ -1569,6 +1618,8 @@ function Studio({
   onSave: (patch: Partial<Project>) => Promise<unknown>;
   jobs: Job[];
   onCancel: (id: string) => void;
+  configured: boolean;
+  onAutomationUpdate: (p: Project, jobs: Job[]) => void;
 }) {
   const [active, setActive] = useState('C'),
     [sheet, setSheet] = useState(1),
@@ -1623,6 +1674,15 @@ function Studio({
           </button>
         </div>
       </div>
+      {!standalone && (
+        <AutomationPanel
+          key={p.id}
+          project={p}
+          configured={configured}
+          onUpdate={onAutomationUpdate}
+          jobs={jobs}
+        />
+      )}
       <div className="workflow-bar">
         {workflow.map((s, i) => (
           <button
@@ -1884,7 +1944,11 @@ function Studio({
                   >
                     <div className="design-art">
                       <span className="design-number">{String(c.cell).padStart(2, '0')}</span>
-                      <Stadium seed={c.seed} />
+                      {previewAsset(p, c) ? (
+                        <SheetPreview asset={previewAsset(p, c)!} cell={c.cell} />
+                      ) : (
+                        <Stadium seed={c.seed} />
+                      )}
                       <span className="design-open">
                         <ArrowUpRight size={16} />
                       </span>
@@ -1907,8 +1971,9 @@ function Studio({
               </div>
               <div className="schematic-note">
                 <Box size={14} />
-                Bunlar mimari planların şematik önizlemeleri. Gerçek 10 hücreli kolaj “Görsel”
-                sekmesine gelir.
+                {asset && asset.status !== 'rejected'
+                  ? 'Kartlar gerçek 2 sütun × 5 satırlı kolajdan kesilen önizlemelerdir. Hücre hizasını ve geometriyi tam kolajda da kontrol et.'
+                  : 'Henüz gerçek render yok. Kartlar temsili şema; önizlemeler üretildiğinde gerçek tasarımlar burada görünür.'}
               </div>
             </>
           ) : (
@@ -2643,6 +2708,7 @@ function Settings({
         </button>
       </div>
       <div className="settings-grid">
+        {!standalone && <OpenAIConnection onRefresh={onRefresh} />}
         {standalone ? (
           <section className="panel">
             <h2>
@@ -2754,8 +2820,9 @@ function Settings({
             <code>@image-2</code> ile eşlenir.
           </p>
           <p>
-            Bu sürüm video render etmez. Hesabındaki modelin süre, ses ve başlangıç/bitiş kontrolünü
-            desteklediğini üretimden önce kontrol et.
+            {standalone
+              ? 'Tek HTML sürümü video render etmez.'
+              : 'Sunucu sürümü OpenAI Sora ile 12 saniyelik videoları üretir ve MP4 olarak saklar. Otomatik prodüksiyon panelinden başlatılır. Sora yalnızca başlangıç görselini alır; son kare kontrolü garanti edilmez.'}
           </p>
           <Badge>Video promptu dışa aktarma aktif</Badge>
         </section>

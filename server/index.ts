@@ -16,6 +16,10 @@ if (process.env.HTTPS_PROXY || process.env.HTTP_PROXY) setGlobalDispatcher(new E
 const { store, mediaDir } = await import('./store');
 const { providerInfo, enqueue, cancelJob, saveImage, invalidateDescendants } =
   await import('./provider');
+const { videoInfo, enqueueVideo, resumeVideo, startVideoWorker } = await import('./video');
+const { startAutomation, cancelAutomation, resumeAutomation, startAutomationWorker } =
+  await import('./automation');
+import { automationPlan, automationView } from '../shared/automation';
 import type { Club, Fact, FactKey, Project } from '../shared/types';
 import {
   createCandidates,
@@ -150,6 +154,7 @@ app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'naberlo', v
 app.get('/api/status', (_req, res) =>
   res.json({
     provider: providerInfo(),
+    videoProvider: videoInfo(),
     catalog: {
       ...meta,
       total: allClubs().length,
@@ -158,6 +163,102 @@ app.get('/api/status', (_req, res) =>
     variantCounts,
   }),
 );
+app.post('/api/provider/key', (req, res) => {
+  const origin = req.get('origin');
+  if (origin) {
+    const address = new URL(origin);
+    if (
+      address.protocol !== 'https:' &&
+      !['localhost', '127.0.0.1', '[::1]'].includes(address.hostname)
+    )
+      fail('API anahtarını HTTPS bağlantısından veya kendi bilgisayarınızdan bağlayın.');
+  }
+  if (
+    store.jobs().some((j) => ['queued', 'running'].includes(j.status)) ||
+    store.runs().some((r) => r.status === 'running')
+  )
+    fail('Üretim sürerken anahtarı değiştiremezsiniz.', 409);
+  const { key } = z
+    .object({
+      key: z
+        .string()
+        .min(20)
+        .max(500)
+        .regex(/^sk-[A-Za-z0-9_-]+$/),
+    })
+    .parse(req.body);
+  process.env.STADIUM_OPENAI_API_KEY = key;
+  res.json({
+    configured: true,
+    persistence: 'process',
+    message:
+      'Anahtar bu sunucu oturumuna bağlandı. Sunucu yeniden başlarsa yeniden bağlayın; kalıcı kullanım için ortam sırrı tanımlayın.',
+  });
+});
+app.get('/api/provider/check', async (_req, res) => {
+  if (!providerInfo().configured) fail('OpenAI API anahtarı bağlı değil.', 503);
+  const response = await fetch('https://api.openai.com/v1/models', {
+    headers: {
+      Authorization: `Bearer ${process.env.STADIUM_OPENAI_API_KEY || process.env.OPENAI_API_KEY}`,
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) fail(`OpenAI bağlantı kontrolü HTTP ${response.status}.`, 502);
+  const result = (await response.json()) as { data?: { id: string }[] };
+  const models = new Set(result.data?.map((m) => m.id));
+  res.json({
+    connected: true,
+    imageModelListed: models.has(providerInfo().model),
+    videoModelListed: models.has(videoInfo().model),
+    message:
+      'Anahtar doğrulandı. Model listesinde görünmek üretim kotası veya başarılı render garantisi değildir. Ücretli üretim yapılmadı.',
+  });
+});
+const automationOptions = z.object({
+  phase: z.enum(['previews', 'production']),
+  includeVideos: z.boolean().default(true),
+  includePlayer: z.boolean().default(false),
+});
+app.get('/api/projects/:id/automation', (req, res) => {
+  getProject(req.params.id);
+  res.json(
+    store
+      .runs()
+      .filter((r) => r.projectId === req.params.id)
+      .slice(0, 20),
+  );
+});
+app.post('/api/projects/:id/automation/plan', (req, res) => {
+  res.json(automationPlan(getProject(req.params.id), automationOptions.parse(req.body)));
+});
+app.post('/api/projects/:id/automation/start', (req, res) => {
+  const input = automationOptions
+    .extend({ confirmed: z.literal(true), useDraftReferences: z.literal(true) })
+    .parse(req.body);
+  res.status(202).json(startAutomation(getProject(req.params.id), input));
+});
+app.post('/api/automation/:id/cancel', (req, res) => res.json(cancelAutomation(req.params.id)));
+app.post('/api/automation/:id/resume', (req, res) => res.json(resumeAutomation(req.params.id)));
+app.post('/api/projects/:id/select-preview', (req, res) => {
+  const p = getProject(req.params.id),
+    candidateId = z.string().parse(req.body.candidateId);
+  const c = p.candidates.find((c) => c.id === candidateId) || fail('Tasarım bulunamadı.', 404);
+  if (!accepted(automationView(p), sheetCode(c.batch, c.sheet)))
+    fail('Önce bu tasarımın gerçek kolaj önizlemesini üretin veya yükleyip kabul edin.', 409);
+  if (p.selectedId !== c.id) {
+    invalidateDescendants(p, 'D0');
+    for (const a of p.assets) if (a.code === 'D0' && a.status === 'accepted') a.status = 'review';
+  }
+  p.selectedId = c.id;
+  res.json(store.save(p));
+});
+app.post('/api/projects/:id/videos/generate', (req, res) => {
+  const { code, confirmed } = z
+    .object({ code: z.string(), confirmed: z.literal(true) })
+    .parse(req.body);
+  res.status(202).json(enqueueVideo(getProject(req.params.id), code));
+});
+app.post('/api/jobs/:id/resume', (req, res) => res.json(resumeVideo(req.params.id)));
 app.get('/api/clubs', (req, res) => {
   const q = normalize(String(req.query.q || '').slice(0, 200)),
     country = String(req.query.country || ''),
@@ -502,6 +603,11 @@ app.get('/api/projects/:id/export', async (req, res) => {
       }
     }
   }
+  for (const video of p.videos || []) {
+    const file = path.join(mediaDir, video.filename);
+    if (fs.existsSync(file))
+      zip.file(file, { name: `videos/${video.code}-review-${video.id}.mp4` });
+  }
   await zip.finalize();
 });
 if (fs.existsSync('dist')) {
@@ -530,6 +636,8 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   });
   if (!e.status) console.error(e.name, e.message.replace(/Bearer\s+\S+/g, 'Bearer [redacted]'));
 });
-app.listen(Number(process.env.PORT) || 3001, host, () =>
-  console.log(`Naberlo API listening on ${host}:${process.env.PORT || 3001}`),
-);
+app.listen(Number(process.env.PORT) || 3001, host, () => {
+  console.log(`Naberlo API listening on ${host}:${process.env.PORT || 3001}`);
+  startAutomationWorker();
+  startVideoWorker();
+});

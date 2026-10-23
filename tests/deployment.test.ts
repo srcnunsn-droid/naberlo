@@ -74,6 +74,30 @@ test('public hosting health check and login shell keep project API and media pri
       ).status,
       403,
     );
+    const testKey = 'sk-test-placeholder-never-a-real-key';
+    const insecureKey = await fetch(base + '/api/provider/key', {
+      method: 'POST',
+      headers: {
+        ...headers,
+        Host: 'office-lan:4182',
+        Origin: 'http://office-lan:4182',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ key: testKey }),
+    });
+    assert.equal(insecureKey.status, 403);
+    const connected = await fetch(base + '/api/provider/key', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: testKey }),
+    });
+    assert.equal(connected.status, 200);
+    assert.ok(!(await connected.text()).includes(testKey));
+    const status = await fetch(base + '/api/status', { headers });
+    const statusText = await status.text();
+    assert.ok(!statusText.includes(testKey));
+    assert.equal(JSON.parse(statusText).provider.configured, true);
+    assert.equal(JSON.parse(statusText).videoProvider.model, 'sora-2');
   } finally {
     if (child.exitCode === null) {
       const stopped = once(child, 'exit');

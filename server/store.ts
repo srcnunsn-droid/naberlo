@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Club, Job, Project } from '../shared/types';
+import type { Club, Job, Project, AutomationRun } from '../shared/types';
 
 export const dataDir = path.resolve(process.env.STADIUM_DATA_DIR || '.data');
 export const mediaDir = path.join(dataDir, 'media');
@@ -10,8 +10,21 @@ const db = new DatabaseSync(path.join(dataDir, 'studio.sqlite'));
 db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
 CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY, data TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS automations(id TEXT PRIMARY KEY, data TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS clubs(id TEXT PRIMARY KEY, data TEXT NOT NULL);`);
 export const store = {
+  runs: () =>
+    db
+      .prepare('SELECT data FROM automations ORDER BY rowid DESC')
+      .all()
+      .map((r) => JSON.parse(r.data as string) as AutomationRun),
+  run: (run: AutomationRun) => {
+    run.updatedAt = new Date().toISOString();
+    db.prepare(
+      'INSERT INTO automations VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
+    ).run(run.id, JSON.stringify(run));
+    return run;
+  },
   projects: () =>
     db
       .prepare('SELECT data FROM projects ORDER BY rowid DESC')
@@ -64,7 +77,7 @@ export const store = {
 };
 // Never retry possibly billed requests after a process restart.
 for (const j of store.jobs())
-  if (['queued', 'running'].includes(j.status))
+  if (['queued', 'running'].includes(j.status) && !(j.kind === 'video' && j.remoteId))
     store.job({
       ...j,
       status: 'failed',

@@ -52,6 +52,7 @@ export interface Asset {
   model?: string;
   width: number;
   height: number;
+  configuration?: string;
 }
 export interface Project {
   id: string;
@@ -72,6 +73,37 @@ export interface Project {
   variant: { removal: number; emergence: number; celebration: number };
   playerConsent: boolean;
   notes: string;
+  videos?: VideoAsset[];
+}
+export interface VideoAsset {
+  id: string;
+  code: string;
+  url: string;
+  filename: string;
+  providerId: string;
+  model: string;
+  seconds: number;
+  status: 'review';
+  references: string[];
+  configuration: string;
+  createdAt: string;
+}
+export interface AutomationStep {
+  kind: 'image' | 'video';
+  code: string;
+  status: 'pending' | 'running' | 'done' | 'reused' | 'failed';
+  jobId?: string;
+}
+export interface AutomationRun {
+  id: string;
+  projectId: string;
+  phase: 'previews' | 'production';
+  status: 'running' | 'done' | 'failed' | 'cancelled';
+  steps: AutomationStep[];
+  configuration: string;
+  createdAt: string;
+  updatedAt: string;
+  error?: string;
 }
 export interface Job {
   id: string;
@@ -83,6 +115,16 @@ export interface Job {
   error?: string;
   assetId?: string;
   costNotice: string;
+  kind?: 'image' | 'video';
+  remoteId?: string;
+  progress?: number;
+  model?: string;
+  seconds?: number;
+  prompt?: string;
+  referenceIds?: string[];
+  configuration?: string;
+  allowDraftReferences?: boolean;
+  runId?: string;
 }
 export interface CatalogStats {
   total: number;

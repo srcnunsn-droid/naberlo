@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import type { Job, Project, Asset } from '../shared/types';
 import { blockers, dependencies, imagePrompt, resolvedReferences } from '../shared/engine';
 import { store, mediaDir } from './store';
+import { automationView, referenceSignature } from '../shared/automation';
 
 export const providerInfo = () => ({
   configured: !!(process.env.STADIUM_OPENAI_API_KEY || process.env.OPENAI_API_KEY),
@@ -12,7 +13,7 @@ export const providerInfo = () => ({
   provider: 'OpenAI Images',
   size: '1024x1536',
   exportSize: '1080x1920',
-  videoRendering: false,
+  videoRendering: !!(process.env.STADIUM_OPENAI_API_KEY || process.env.OPENAI_API_KEY),
 });
 export function fingerprint(p: Project) {
   return createHash('sha256')
@@ -95,7 +96,12 @@ export function cancelJob(id: string) {
     });
   }
 }
-export function enqueue(p: Project, code: string) {
+export function enqueue(
+  p: Project,
+  code: string,
+  options: { allowDraftReferences?: boolean; runId?: string } = {},
+) {
+  if (options.allowDraftReferences) p = automationView(p);
   const existing = store
     .jobs()
     .find(
@@ -110,6 +116,8 @@ export function enqueue(p: Project, code: string) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     costNotice: 'Bir görsel isteği sağlayıcı tarafından ücretlendirilebilir.',
+    kind: 'image',
+    ...options,
   };
   store.job(job);
   queue.push({
@@ -134,6 +142,7 @@ async function drain() {
       const timeout = setTimeout(() => controller.abort(), 240_000);
       try {
         let p = store.project(job.projectId);
+        if (p && job.allowDraftReferences) p = automationView(p);
         if (!p || fingerprint(p) !== task.hash)
           throw new Error('Proje ayarları değişti. Güncel ayarlarla yeniden kuyruğa ekleyin.');
         if (blockers(p, job.code).length)
@@ -182,9 +191,10 @@ async function drain() {
           throw new Error('Sağlayıcı geçerli boyutta bir görsel döndürmedi.');
         p = store.project(job.projectId);
         if (!p) throw new Error('Proje silindi.');
+        const currentView = job.allowDraftReferences ? automationView(p) : p;
         if (
           fingerprint(p) !== task.hash ||
-          JSON.stringify(resolvedReferences(p, job.code).map((a) => a.id)) !==
+          JSON.stringify(resolvedReferences(currentView, job.code).map((a) => a.id)) !==
             JSON.stringify(task.referenceIds)
         )
           throw new Error(
@@ -196,7 +206,7 @@ async function drain() {
           job.code,
           'openai',
           refs.map((a) => a.id),
-          { prompt, model: info.model },
+          { prompt, model: info.model, configuration: referenceSignature(p, job.code) },
         );
         p.assets.push(asset);
         store.save(p);

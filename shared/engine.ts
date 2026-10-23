@@ -211,7 +211,11 @@ export function dependencies(p: Project, code: string): string[] {
     result.push('CREST');
   return result;
 }
-export function blockers(p: Project, code: string): string[] {
+export function blockers(
+  p: Project,
+  code: string,
+  planned: ReadonlySet<string> = new Set(),
+): string[] {
   const out: string[] = [];
   const labels: Partial<Record<FactKey, string>> = {
     club: 'Kulüp adı',
@@ -232,7 +236,7 @@ export function blockers(p: Project, code: string): string[] {
   for (const key of needed)
     if (!isVerified(p.facts[key])) out.push(`${labels[key]} kaynakla doğrulanmalı.`);
   for (const dep of dependencies(p, code))
-    if (!accepted(p, dep))
+    if (!accepted(p, dep) && !planned.has(dep))
       out.push(`${dep} görseli yüklenmeli / üretilmeli ve kalite kontrolünden geçmeli.`);
   if (code === 'D0' && !p.selectedId) out.push('Bir stadyum tasarımı seçilmeli.');
   if (code === 'TF3' && !p.playerConsent) out.push('Oyuncu seçimi açıkça onaylanmalı.');
