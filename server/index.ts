@@ -19,6 +19,7 @@ const { providerInfo, enqueue, cancelJob, saveImage, invalidateDescendants } =
 const { videoInfo, enqueueVideo, resumeVideo, startVideoWorker } = await import('./video');
 const { startAutomation, cancelAutomation, resumeAutomation, startAutomationWorker } =
   await import('./automation');
+const { startProjectResearch, recoverResearch } = await import('./project-research');
 import { automationPlan, automationView } from '../shared/automation';
 import type { Club, Fact, FactKey, Project } from '../shared/types';
 import {
@@ -101,6 +102,8 @@ const factSchema = z
     status: z.enum(['unverified', 'single-source', 'verified']),
     official: z.boolean(),
     checkedAt: z.string().optional(),
+    verification: z.literal('web-research').optional(),
+    evidence: z.string().max(2000).optional(),
   })
   .superRefine((f, ctx) => {
     if (
@@ -175,7 +178,8 @@ app.post('/api/provider/key', (req, res) => {
   }
   if (
     store.jobs().some((j) => ['queued', 'running'].includes(j.status)) ||
-    store.runs().some((r) => r.status === 'running')
+    store.runs().some((r) => r.status === 'running') ||
+    store.projects().some((p) => p.research?.status === 'running')
   )
     fail('Üretim sürerken anahtarı değiştiremezsiniz.', 409);
   const { key } = z
@@ -373,9 +377,13 @@ app.post('/api/projects', (req, res) => {
     playerConsent: false,
     notes: '',
   };
-  res.status(201).json(store.save(p));
+  store.save(p);
+  res.status(201).json(providerInfo().configured ? startProjectResearch(p) : p);
 });
 app.get('/api/projects/:id', (req, res) => res.json(getProject(req.params.id)));
+app.post('/api/projects/:id/research', (req, res) => {
+  res.status(202).json(startProjectResearch(getProject(req.params.id)));
+});
 app.patch('/api/projects/:id', (req, res) => {
   const p = getProject(req.params.id);
   const input = z
@@ -524,6 +532,7 @@ app.post('/api/projects/:id/assets/:assetId/review', (req, res) => {
   }
   asset.status = input.status;
   asset.checks = input.checks;
+  asset.reviewMode = 'human';
   res.json(store.save(p));
 });
 app.get('/api/projects/:id/prompts/:code', (req, res) => {
@@ -578,6 +587,16 @@ app.get('/api/projects/:id/export', async (req, res) => {
   zip.on('error', () => res.destroy());
   zip.pipe(res);
   zip.append(JSON.stringify(p, null, 2), { name: 'project.json' });
+  zip.append(
+    p.assets
+      .filter((a) => a.provenance)
+      .map(
+        (a) =>
+          `${a.filename}\nSource: ${a.provenance!.page}\nAuthor: ${a.provenance!.author}\nLicense: ${a.provenance!.license} ${a.provenance!.licenseUrl}\nCapture date: ${a.provenance!.capturedAt || 'Unknown'}\nRetrieved: ${a.provenance!.retrievedAt}\nChanges: converted/resized to PNG; exported with padding where applicable.\n`,
+      )
+      .join('\n'),
+    { name: 'SOURCE-ATTRIBUTION.txt' },
+  );
   zip.append(fs.readFileSync('docs/STADIUM-MASTER-v43.txt'), { name: 'STADIUM-MASTER-v43.txt' });
   zip.append(
     'AI concept project. Only assets marked accepted passed user review. Unverified facts remain unverified. Files under drafts are prompts, not rendered media. Native provider images may be 2:3; 9:16 exports below use padding, never geometry cropping.\n',
@@ -638,6 +657,7 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 });
 app.listen(Number(process.env.PORT) || 3001, host, () => {
   console.log(`Naberlo API listening on ${host}:${process.env.PORT || 3001}`);
+  recoverResearch();
   startAutomationWorker();
   startVideoWorker();
 });

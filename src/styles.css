@@ -3713,3 +3713,34 @@ details summary {
     flex-wrap: wrap;
   }
 }
+
+.research-panel {
+  margin-bottom: 24px;
+  padding: 24px;
+  overflow-wrap: anywhere;
+}
+.research-panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.research-panel details {
+  margin-top: 14px;
+}
+.research-fact {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.research-fact a {
+  display: inline-block;
+  margin: 4px 12px 4px 0;
+}
+@media (max-width: 600px) {
+  .research-panel {
+    padding: 16px;
+  }
+  .research-panel .section-heading {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

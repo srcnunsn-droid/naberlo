@@ -87,6 +87,7 @@ import { api, post, download, ApiError, authHeaders } from './api';
 import { Stadium } from './components/Stadium';
 import { StandaloneBar } from './components/StandaloneBar';
 import { AutomationPanel, OpenAIConnection } from './components/AutomationPanel';
+import { ResearchPanel } from './components/ResearchPanel';
 import { automationView } from '../shared/automation';
 const standalone = import.meta.env.VITE_STANDALONE === '1';
 
@@ -888,6 +889,12 @@ export default function App() {
       )}
       {createOpen && (
         <Modal title="Yeni bir hikâye başlat" onClose={closeCreate}>
+          {!standalone && (
+            <p className="small muted">
+              OpenAI bağlıysa proje açıldığında güncel bilgiler ve kaynak fotoğrafları otomatik
+              araştırılır. Web araması ve fotoğraf kontrolü API ücreti oluşturabilir.
+            </p>
+          )}
           <ClubPicker
             onChoose={(c) =>
               run(
@@ -1140,6 +1147,13 @@ export default function App() {
               ))}
             </div>
           )}
+          {!standalone && genIssues.length > 0 && (
+            <ResearchPanel
+              project={project}
+              configured={!!status?.provider.configured}
+              onUpdate={setProject}
+            />
+          )}
           <div className="modal-actions">
             <button
               className="button"
@@ -1361,6 +1375,11 @@ function ClubAtlas({
           Veri kaynağı <ExternalLink size={14} />
         </a>
       </div>
+      {!standalone && (
+        <p className="small muted">
+          OpenAI bağlıysa yeni projede kaynak araştırması otomatik başlar; API ücreti oluşabilir.
+        </p>
+      )}
       <div className="filter-bar">
         <div className="search-box">
           <Search size={18} />
@@ -1675,6 +1694,13 @@ function Studio({
         </div>
       </div>
       {!standalone && (
+        <ResearchPanel
+          project={p}
+          configured={configured}
+          onUpdate={(next) => onAutomationUpdate(next, jobs)}
+        />
+      )}
+      {!standalone && (
         <AutomationPanel
           key={p.id}
           project={p}
@@ -1818,7 +1844,7 @@ function Studio({
                   <label className={`upload-mini ${a ? 'has-file' : ''}`}>
                     <Upload size={13} />
                     {a
-                      ? `${a.status === 'accepted' ? 'Kabul edildi' : 'Kontrol bekliyor'} · değiştir`
+                      ? `${a.status === 'accepted' ? (a.reviewMode === 'automatic' ? 'Otomatik kontrol geçti' : 'Kabul edildi') : 'Kontrol bekliyor'} · değiştir`
                       : 'PNG / JPG / WebP yükle'}
                     <input
                       type="file"
@@ -2257,7 +2283,9 @@ function Review({
         <div>
           <Badge tone={asset.status === 'accepted' ? 'green' : 'amber'}>
             {asset.status === 'accepted'
-              ? 'Kabul edilmiş'
+              ? asset.reviewMode === 'automatic'
+                ? 'Otomatik kontrol tamamlandı'
+                : 'Kabul edilmiş'
               : asset.status === 'rejected'
                 ? 'Reddedilmiş'
                 : 'İnceleme bekliyor'}
@@ -2266,9 +2294,25 @@ function Review({
             {asset.code} · {asset.width} × {asset.height}
           </h3>
           <p className="muted">
-            {asset.origin === 'upload' ? 'Kullanıcı yüklemesi' : `${asset.model} üretimi`}. Görseli
-            gerçekten inceleyip her maddeyi doğrula.
+            {asset.origin === 'upload'
+              ? 'Kullanıcı yüklemesi'
+              : asset.origin === 'research'
+                ? 'İnternetten bulunan gerçek kaynak görseli'
+                : `${asset.model} üretimi`}
+            . Görseli gerçekten inceleyip her maddeyi doğrula.
           </p>
+          {asset.provenance && (
+            <p className="small">
+              <a href={asset.provenance.page} target="_blank" rel="noreferrer">
+                Kaynak fotoğraf
+              </a>{' '}
+              · {asset.provenance.author} · {asset.provenance.license}
+              <br />
+              Çekim tarihi: {asset.provenance.capturedAt || 'Belirtilmemiş'}
+              <br />
+              Otomatik değerlendirme: {asset.provenance.assessment} (insan onayı değildir).
+            </p>
+          )}
           {reviewChecks.map((check) => (
             <label className="review-check" key={check}>
               <input

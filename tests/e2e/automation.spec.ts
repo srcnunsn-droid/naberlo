@@ -30,7 +30,25 @@ test('actual sheet previews, selection, production controls and secure key form'
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/api/projects')
       return route.fulfill({ json: [{ ...p, assetCount: p.assets.length, acceptedCount: 4 }] });
-    if (pathname === '/api/projects/test') return route.fulfill({ json: p });
+    if (pathname === '/api/projects/test') {
+      if (p.research?.status === 'running')
+        p.research = {
+          ...p.research,
+          status: 'done',
+          message: 'Güncel kaynak araştırması tamamlandı.',
+        };
+      return route.fulfill({ json: p });
+    }
+    if (pathname === '/api/projects/test/research') {
+      p.research = {
+        id: 'research-test',
+        status: 'running',
+        startedAt: new Date().toISOString(),
+        message: 'Kaynaklar araştırılıyor.',
+        warnings: [],
+      };
+      return route.fulfill({ status: 202, json: p });
+    }
     if (pathname === '/api/projects/test/automation' || pathname === '/api/jobs')
       return route.fulfill({ json: [] });
     if (pathname.endsWith('/select-preview')) {
@@ -67,6 +85,10 @@ test('actual sheet previews, selection, production controls and secure key form'
   await page.getByRole('button', { name: 'Bu tasarımı seç', exact: true }).click();
   expect(selected).toBe('C1-02');
   expect(p.assets.find((a) => a.code === 'C1')?.status).toBe('review');
+  await page.getByRole('button', { name: 'İnternetten otomatik tamamla', exact: true }).click();
+  await expect(page.locator('.research-panel')).toContainText(
+    'Güncel kaynak araştırması tamamlandı.',
+  );
   await page.getByRole('combobox', { name: 'Aşama', exact: true }).selectOption('production');
   await expect(page.getByLabel('Videoları da üret')).toBeChecked();
   await expect(page.locator('.automation-panel')).toContainText('18 görsel');

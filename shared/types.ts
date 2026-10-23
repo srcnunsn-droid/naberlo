@@ -17,6 +17,8 @@ export interface Fact {
   status: 'unverified' | 'single-source' | 'verified';
   official: boolean;
   checkedAt?: string;
+  verification?: 'web-research';
+  evidence?: string;
 }
 export interface Candidate {
   id: string;
@@ -44,7 +46,7 @@ export interface Asset {
   url: string;
   filename: string;
   status: 'review' | 'accepted' | 'rejected';
-  origin: 'upload' | 'openai';
+  origin: 'upload' | 'openai' | 'research';
   createdAt: string;
   references: string[];
   checks: string[];
@@ -53,6 +55,16 @@ export interface Asset {
   width: number;
   height: number;
   configuration?: string;
+  reviewMode?: 'automatic' | 'human';
+  provenance?: {
+    page: string;
+    retrievedAt: string;
+    capturedAt: string;
+    author: string;
+    license: string;
+    licenseUrl: string;
+    assessment: string;
+  };
 }
 export interface Project {
   id: string;
@@ -74,6 +86,14 @@ export interface Project {
   playerConsent: boolean;
   notes: string;
   videos?: VideoAsset[];
+  research?: {
+    id: string;
+    status: 'running' | 'done' | 'failed';
+    startedAt: string;
+    finishedAt?: string;
+    message: string;
+    warnings: string[];
+  };
 }
 export interface VideoAsset {
   id: string;

@@ -19,7 +19,7 @@ Bu depoda tarayıcıdan başlatma ayarları hazırdır; bu sohbetten hesabın ad
 ### Otomatik üretim
 
 1. **Stüdyo ayarları → OpenAI API bağlantısı** alanına API anahtarını gir ve **Anahtarı bağla ve kontrol et** düğmesine bas. Anahtarı sohbete yazma. Bu kontrol ücretli üretim yapmaz. Anahtar yalnızca sunucu belleğinde tutulur; yeniden başlatmada tekrar bağlanır. Kalıcı bağlantı için Codespaces ortam sırrı olarak `STADIUM_OPENAI_API_KEY` tanımlanabilir.
-2. Proje aç, kulüp ve stadyum bilgilerini doğrula. Gerçek stadyum fotoğrafını **SITE**, resmi armayı **CREST** olarak yükleyip kontrol et.
+2. OpenAI bağlıyken yeni proje açınca **canlı kaynak araştırması otomatik başlar**. Eski projede **İnternetten otomatik tamamla** düğmesine bas. Kulüp, güncel stadyum, şehir, konum/şehir sabitleri, renkler, simge, mevcut kapasite ve arma araştırılır. Uygun gerçek SITE/CREST görselleri otomatik indirilip kontrol edilir; yalnızca kaynak veya görsel uygunluğu eksik kalan alanlar incelemeye bırakılır.
 3. **Otomatik prodüksiyon → 1 · Gerçek tasarım önizlemeleri** seç. İstek sayısını inceleyip başlat. İlk çalıştırmada R0, E0 ve 10 tasarım kolajı olmak üzere en fazla **12 görsel isteği** yapılır.
 4. Tasarım kartları artık gerçek kolaj hücrelerini gösterir. Birini açıp **Bu tasarımı seç** düğmesine bas.
 5. **2 · Seçilen tasarımın görselleri ve videoları** seç. Oyuncu tifosu hariç en fazla **18 görsel ve 11 adet 12 saniyelik video** üretilir. Oyuncu tifosu ayrıca açık seçim, doğrulanmış oyuncu bilgisi ve PLAYER görseli gerektirir.
@@ -177,3 +177,22 @@ Varsayılan yerel, tek çalışma alanıdır; çok kiracılı bir SaaS değildir
 - `docs/STADIUM-MASTER-v43.txt`: kullanıcının sağladığı kaynak iş akışı.
 
 Görsel servisinin gerçek ücretli çağrısı ve Wikidata erişimi, ilgili anahtar/ağ izni olmadan doğrulanamaz. Mock sağlayıcı testi gerçek bir render kanıtı değildir. Google Earth ekran görüntüleri ve resmi arma/oyuncu görselleri uygulamayla dağıtılmaz; kullanıcı referans olarak sağlar.
+
+## Güncel kaynak araştırması
+
+`server/project-research.ts`, OpenAI Responses API'nin `web_search` aracını ve varsayılan `gpt-4.1` modelini kullanır (`OPENAI_RESEARCH_MODEL`). Her çalıştırma sunucunun bugünkü tarihini kullanır; 2026 bilgisi eski kataloğa etiket eklenerek üretilmez. Kaynaklarda güncel kullanılan stadyum, geçici taşınmalar ve sponsor adı değişiklikleri araştırılır. Arama ve fotoğraf incelemesi ücretli API çağrılarıdır; yeni proje oluşturmadan önce arayüz bunu belirtir. Araştırma başlatmak görsel/video üretimini başlatmaz.
+
+- Bir alan ancak canlı aramada gerçekten dönmüş kaynak URL'leri, desteklenen bir değer ve kanıt açıklamasıyla otomatik doğrulanır. Wikidata'daki kulüp kimliğiyle eşleşen resmi alan adı veya farklı kaynak grupları gerekir. Wikipedia/Wikidata/Wikimedia aynı kaynak grubu sayılır. Modelin yazdığı fakat arama çıktısında bulunmayan URL'ler kabul edilmez. Bu yöntem bağımsız bir doğruluk garantisi değildir; kaynak çatışması/eksikliği gösterilir.
+- Mevcut doğrulanmış bilgiler korunur. Otomatik araştırılan değerlerde kaynak URL'leri, kontrol tarihi ve kanıt açıklaması saklanır. Güncel bilgi bulunamazsa kilit açılmaz.
+- Kulübün Wikidata P115 stadyum bağlantısı kontrol edilir; bitiş tarihi bulunan eski bağlantılar kullanılmaz. P18 stadyum fotoğrafları ve P154 arma dosyaları Wikimedia Commons'tan alınır. Modelin ürettiği URL'den dosya indirilmez. Fotoğraflar yalnızca `upload.wikimedia.org` üzerinden, yönlendirme kabul edilmeden ve 15 MB/50 megapiksel sınırıyla okunur.
+- Uygun CC BY, CC BY-SA, CC0 veya kamu malı lisanslı gerçek kaynak görselleri modele gösterilerek otomatik taranır. Kaynak/kimlik belirsizse, stadyumun tamamı ve yakın çevresi görünmüyorsa veya fotoğraf uygun değilse kabul edilmez. Bulunamayan SITE yerine uydurma referans üretilmez.
+- Otomatik geçen kaynak görselinde `reviewMode=automatic` tutulur; altı insan kontrol kutusu doldurulmaz. Kaynak, sanatçı, lisans, gerçek çekim tarihi (varsa) ve erişim tarihi saklanır. Yükleme tarihi çekim tarihi yerine kullanılmaz. Eski fotoğraf 2026'da indirilse de 2026 fotoğrafı diye gösterilmez. ZIP'te `SOURCE-ATTRIBUTION.txt` bulunur.
+- İş arka planda ilerler; sayfa yenilenince durum veritabanından gelir. Sunucu yeniden başlarsa yarım araştırma kendiliğinden tekrar ücretlendirilmez. Araştırma sırasında elle değiştirilen kimlik/referanslar üzerine yazılmaz.
+
+Çalışan Codespace'i bu sürüme güncellemek için aynı depo terminalinde:
+
+```bash
+git pull --ff-only && npm run build && bash .devcontainer/start.sh --restart
+```
+
+`--restart` yalnızca aynı repo dizininde aynı portla, bu başlatıcı üzerinden çalışan Naberlo sunucusunu kapatır; diğer süreçleri kapatmaz. Sunucu belleğinden girilen API anahtarı yeniden bağlanmalıdır. Kalıcı Codespaces sırrı kullanılabilir. `.data` korunur.
