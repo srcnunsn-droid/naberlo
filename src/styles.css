@@ -149,13 +149,22 @@ pre {
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
   width: 230px;
   background: #ffffff;
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   z-index: 20;
-  padding: 30px 18px 0;
+  padding: 30px 18px max(16px, env(safe-area-inset-bottom));
+}
+.sidebar > * {
+  flex-shrink: 0;
 }
 .brand {
   display: flex;
@@ -2637,7 +2646,7 @@ details summary {
 @media (max-width: 1000px) {
   .sidebar {
     width: 190px;
-    padding: 25px 10px 0;
+    padding: 25px 10px max(16px, env(safe-area-inset-bottom));
   }
   .main-shell {
     margin-left: 190px;
@@ -2987,9 +2996,6 @@ details summary {
   .topbar-right .badge {
     font-size: 8px;
     padding: 5px 6px;
-  }
-  .topbar-right > .icon-button {
-    display: none;
   }
   main {
     padding: 25px 18px 35px;

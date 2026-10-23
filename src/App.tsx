@@ -589,6 +589,7 @@ export default function App() {
             <button
               className="icon-button"
               aria-label="Ayarlar"
+              title="API bağlantısı ve stüdyo ayarları"
               onClick={() => navigate('settings')}
             >
               <Settings2 size={18} />
