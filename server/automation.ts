@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Project, AutomationRun } from '../shared/types';
-import { accepted, clipPairs } from '../shared/engine';
+import { accepted } from '../shared/engine';
 import {
   automationPlan,
   automationView,
@@ -11,6 +11,9 @@ import { cancelJob, enqueue, providerInfo } from './provider';
 import { enqueueVideo, resumeVideo } from './video';
 import { store } from './store';
 import { startMovie, movieInputs, movieSignature } from './movie';
+import { currentVideo, animaticSignature, videoConfiguration } from '../shared/video-state';
+import { startAnimatic } from './animatic';
+import { analyzeVideo } from './video-quality';
 
 export function startAutomation(p: Project, options: AutomationOptions) {
   if (!providerInfo().configured) throw new Error('OpenAI API anahtarı bağlı değil.');
@@ -25,7 +28,7 @@ export function startAutomation(p: Project, options: AutomationOptions) {
     phase: options.phase,
     status: 'running',
     steps: plan.steps,
-    configuration: projectSignature(p),
+    configuration: options.phase === 'previews' ? projectSignature(p) : videoConfiguration(p),
     createdAt: now,
     updatedAt: now,
   };
@@ -44,7 +47,10 @@ export function resumeAutomation(id: string) {
   const run = store.runs().find((r) => r.id === id);
   if (!run || run.status !== 'failed') throw new Error('Devam ettirilebilecek akış bulunamadı.');
   const p = store.project(run.projectId);
-  if (!p || projectSignature(p) !== run.configuration)
+  if (
+    !p ||
+    (run.phase === 'previews' ? projectSignature(p) : videoConfiguration(p)) !== run.configuration
+  )
     throw new Error('Proje ayarları değişti; bu akış sürdürülemez.');
   const step = run.steps.find((s) => s.status === 'failed');
   if (!step?.jobId || step.kind !== 'video')
@@ -55,11 +61,35 @@ export function resumeAutomation(id: string) {
   run.error = undefined;
   return store.run(run);
 }
+function qualityReady(p: Project, code: string) {
+  if (!p.story?.autoQuality) return true;
+  const v = currentVideo(p, code);
+  if (!v) throw new Error(`${code} güncel klibi bulunamadı.`);
+  if (v.qc?.status === 'accepted') return true;
+  if (!v.quality) {
+    analyzeVideo(p, v.id);
+    return false;
+  }
+  if (v.quality.status === 'running') return false;
+  if (v.quality.status === 'failed')
+    throw new Error(
+      `${code} AI kontrolü tamamlanamadı. Klip kontrol panelinden inceleyin; otomatik ücretli tekrar yapılmadı.`,
+    );
+  if (v.quality.findings?.length)
+    throw new Error(
+      `${code} kontrolünde bulgular var. Klibi inceleyip kabul edin veya yeniden üretin, ardından üretim akışını tekrar başlatın. Geçerli klipler korunur.`,
+    );
+  return true;
+}
 export function tickAutomation() {
   for (const run of store.runs().filter((r) => r.status === 'running')) {
     try {
       const p = store.project(run.projectId);
-      if (!p || projectSignature(p) !== run.configuration)
+      if (
+        !p ||
+        (run.phase === 'previews' ? projectSignature(p) : videoConfiguration(p)) !==
+          run.configuration
+      )
         throw new Error(
           'Proje ayarları değişti; otomasyon durduruldu. Yeni ayarlarla tekrar başlatın.',
         );
@@ -85,6 +115,7 @@ export function tickAutomation() {
           throw new Error(job?.error || 'Üretim adımı tamamlanamadı.');
         }
         if (job.status === 'done') {
+          if (step.kind === 'video' && !qualityReady(p, step.code)) continue;
           step.status = 'done';
           store.run(run);
         }
@@ -96,17 +127,24 @@ export function tickAutomation() {
         continue;
       }
       if (step.kind === 'video') {
-        const pair = clipPairs.find((c) => c[0] === step.code)!;
-        const ids = pair.slice(2).map((code) => accepted(view, code)?.id);
-        if (
-          p.videos?.some(
-            (v) =>
-              v.code === step.code &&
-              v.qc?.status !== 'rejected' &&
-              v.configuration === projectSignature(p) &&
-              JSON.stringify(v.references) === JSON.stringify(ids),
-          )
-        ) {
+        if (p.story?.previewFirst) {
+          const signature = animaticSignature(p);
+          if (!p.animatic || p.animatic.configuration !== signature) {
+            if (p.animatic?.status !== 'running') startAnimatic(p);
+            continue;
+          }
+          if (p.animatic.status === 'failed')
+            throw new Error(p.animatic.error || 'Taslak hazırlanamadı.');
+          if (p.animatic.status !== 'done' || !p.animatic.approvedAt) {
+            run.error =
+              'Hareketli taslak onayı bekleniyor. Referanstan final filme panelinde inceleyin.';
+            store.run(run);
+            continue;
+          }
+          run.error = undefined;
+        }
+        if (currentVideo(p, step.code)) {
+          if (!qualityReady(p, step.code)) continue;
           step.status = 'reused';
           store.run(run);
           continue;

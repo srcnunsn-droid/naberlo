@@ -4,9 +4,16 @@ import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import type { Job, Project, VideoAsset } from '../shared/types';
 import { accepted, clipPairs, imagePrompt, videoPrompts } from '../shared/engine';
-import { automationView, projectSignature } from '../shared/automation';
+import { automationView } from '../shared/automation';
 import { mediaDir, store } from './store';
 import { shotDuration } from '../shared/story';
+import {
+  currentVideo,
+  previousContinuousCode,
+  videoConfiguration,
+  animaticSignature,
+} from '../shared/video-state';
+import { extractEndFrame, analyzeVideo } from './video-quality';
 
 export const videoInfo = () => ({
   configured: !!(process.env.STADIUM_OPENAI_API_KEY || process.env.OPENAI_API_KEY),
@@ -62,6 +69,13 @@ export function enqueueVideo(
   runId?: string,
 ) {
   if (!key()) throw new Error('OpenAI API anahtarı bağlı değil.');
+  if (
+    p.story?.previewFirst &&
+    (!p.animatic?.approvedAt ||
+      p.animatic.status !== 'done' ||
+      p.animatic.configuration !== animaticSignature(p))
+  )
+    throw new Error('Önce güncel hareketli taslağı onaylayın.');
   const existing = store
     .jobs()
     .find(
@@ -77,6 +91,13 @@ export function enqueueVideo(
     info = videoInfo();
   if (!['sora-2', 'sora-2-pro'].includes(info.model))
     throw new Error('OPENAI_VIDEO_MODEL sora-2 veya sora-2-pro olmalı.');
+  const previous = previousContinuousCode(p, code);
+  const parent = previous ? currentVideo(p, previous) : undefined;
+  if (previous && !parent?.endFrame)
+    throw new Error(`${previous} güncel klibi ve son karesi hazır olmalı.`);
+  const continuity = parent?.endFrame
+    ? { sourceVideoId: parent.id, filename: parent.endFrame.filename }
+    : undefined;
   const now = new Date().toISOString();
   const job: Job = {
     id: randomUUID(),
@@ -88,9 +109,14 @@ export function enqueueVideo(
     updatedAt: now,
     model: info.model,
     seconds: shotDuration(p, code),
-    prompt: soraPrompt(v, code),
+    prompt:
+      soraPrompt(v, code) +
+      (continuity
+        ? '\nCONTINUITY INPUT: This opening is the actual last decoded frame of the preceding clip. Continue from its visible state without replaying the previous action; preserve camera and architecture. Reach the target state described above.'
+        : ''),
+    continuity,
     referenceIds: refs.map((a) => a.id),
-    configuration: projectSignature(p),
+    configuration: videoConfiguration(p),
     allowDraftReferences,
     runId,
     costNotice: `${shotDuration(p, code)} saniyelik video isteği OpenAI API hesabında ücret oluşturur.`,
@@ -137,15 +163,21 @@ export async function tickVideos() {
       if (!p) throw new Error('Proje silindi.');
       const refs = references(view(p, !!job.allowDraftReferences), job.code);
       if (
-        projectSignature(p) !== job.configuration ||
+        videoConfiguration(p) !== job.configuration ||
         JSON.stringify(refs.map((a) => a.id)) !== JSON.stringify(job.referenceIds)
       )
         throw new Error('Proje veya video referansı değişti. Eski işlem tekrar gönderilmedi.');
+      const previous = previousContinuousCode(p, job.code);
+      const parent = previous ? currentVideo(p, previous) : undefined;
+      if (job.continuity?.sourceVideoId !== parent?.id || (previous && !parent))
+        throw new Error('Önceki klip değişti. Eski devamlılık karesi kullanılmadı.');
       if (!job.remoteId) {
         // Persist before POST. A crash without a returned remote ID must never
         // cause a second possibly billed creation request on restart.
         store.job({ ...job, status: 'running' });
-        const source = await fs.readFile(path.join(mediaDir, refs[0].filename));
+        const source = await fs.readFile(
+          path.join(mediaDir, job.continuity?.filename || refs[0].filename),
+        );
         const image = await sharp(source)
           .resize(720, 1280, { fit: 'contain', background: '#10120f' })
           .png()
@@ -211,7 +243,7 @@ export async function tickVideos() {
       const current = store.project(p.id);
       if (
         !current ||
-        projectSignature(current) !== job.configuration ||
+        videoConfiguration(current) !== job.configuration ||
         JSON.stringify(
           references(view(current, !!job.allowDraftReferences), job.code).map((a) => a.id),
         ) !== JSON.stringify(job.referenceIds)
@@ -221,7 +253,32 @@ export async function tickVideos() {
       const id = randomUUID(),
         filename = `${id}.mp4`;
       await fs.writeFile(path.join(mediaDir, filename), bytes, { mode: 0o600 });
+      let endFrame: VideoAsset['endFrame'];
+      if (p.story?.continuity) {
+        try {
+          endFrame = await extractEndFrame(filename, id);
+        } catch (e) {
+          await fs.rm(path.join(mediaDir, filename), { force: true });
+          throw e;
+        }
+      }
+      const latest = store.project(p.id);
+      if (
+        !latest ||
+        videoConfiguration(latest) !== job.configuration ||
+        JSON.stringify(
+          references(view(latest, !!job.allowDraftReferences), job.code).map((a) => a.id),
+        ) !== JSON.stringify(job.referenceIds) ||
+        (previous && currentVideo(latest, previous)?.id !== job.continuity?.sourceVideoId) ||
+        store.jobs().find((j) => j.id === job.id)?.status === 'cancelled'
+      ) {
+        await fs.rm(path.join(mediaDir, filename), { force: true });
+        if (endFrame) await fs.rm(path.join(mediaDir, endFrame.filename), { force: true });
+        throw new Error('Kayıt sırasında proje veya önceki klip değişti.');
+      }
       const asset: VideoAsset = {
+        endFrame,
+        continuity: job.continuity,
         id,
         code: job.code,
         filename,
@@ -234,10 +291,11 @@ export async function tickVideos() {
         configuration: job.configuration!,
         createdAt: new Date().toISOString(),
       };
-      current.videos ||= [];
-      current.videos.push(asset);
-      store.save(current);
+      latest.videos ||= [];
+      latest.videos.push(asset);
+      store.save(latest);
       store.job({ ...job, status: 'done', progress: 100, assetId: id });
+      if (latest.story?.autoQuality) analyzeVideo(latest, id);
     } catch (error) {
       const current = store.jobs().find((j) => j.id === job.id)!;
       if (current.status !== 'cancelled')

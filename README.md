@@ -36,6 +36,18 @@ Stüdyoda **Referanstan final filme** panelinden 16, 20, 24 veya 28 saniyelik bi
 
 FFmpeg, ffprobe ve DejaVu Sans yeni Codespace imajında hazırdır. Mevcut Linux/Codespaces kurulumunda `bash scripts/install-media-tools.sh` bunları kurar. Windows tarayıcısından buluttaki tüm özellikler kullanılabilir; Windows'ta yerel sunucu için FFmpeg kurulumu ayrıca gerekir ve bu kurgu sürümünün yazı tipi yolu Linux içindir. Tek HTML sürümü yeni sunucu tabanlı video araçlarını içermez.
 
+### Devamlılık, taslak onayı ve klip kontrolü
+
+**Referanstan final filme** panelinde üç seçenek eklenmiştir; eski projelerde kapalı başlar:
+
+- **Aynı sahnenin devamında önceki klibin son karesini kullan:** Bitmiş MP4'ün gerçek son karesi çıkarılıp sonraki uyumlu sahnenin başlangıç görseli olarak gönderilir. Söküm → inşaat → gece gibi aynı sahne zincirlerinde çalışır. Sokak, tribün veya başka kamera açısına kesmede kendi başlangıç görseli kullanılır. Önceki klip değiştirilirse ona bağlı devam klipleri eski sayılır. Bu seçimi değiştirmek yeni video üretimi gerektirir; mevcut görseller korunur.
+- **Video üretiminden önce hareketli taslağı hazırla ve onayımı bekle:** Görseller tamamlanınca yerel olarak 720×1280 bir taslak MP4 hazırlanır. Gerçek AI hareketi içermez; başlangıç/final görselleri, süreler ve geçişlerden oluşur. Güncel taslağı onaylayana kadar video oluşturma isteği gönderilmez. Mevcut görsellerle manuel taslak hazırlama ve indirme API ücreti oluşturmaz. Görsel veya başlık değişirse önceki onay geçersizdir.
+- **Her klipten sonra AI görsel kontrolü yap:** Ek API isteğiyle 12 zamanlı kare, başlangıç/hedef görselleri ve varsa arma karşılaştırılır. Mimari, şehir/kamera, kimlik, fizik ve sahne eşleşmesi için gözlenen bulgular ile düzeltme önerileri gösterilir. Bulgudaki saniyeye basınca video o ana gider. Ses analizi yapılmaz, kusursuzluk veya insan onayı verilmez. Bir bulgu ya da analiz hatası varsa otomasyon sonraki klibe geçmez; inceleyip klibi kabul edebilir veya tek sahneyi yeniden üretebilirsin. Ardından üretim akışını tekrar başlat; geçerli klipler yeniden ücretli üretilmez. Başarısız analiz kendiliğinden tekrar edilmez.
+
+Taslak onayı, AI kontrolü ve son kareler proje kaydında tutulur. Sunucu yeniden başlarsa yarım kalan taslak/kontrol görünür hata durumuna geçer; ücretli araştırma veya analiz otomatik yeniden gönderilmez. Son kareler ve taslak MP4 proje ZIP'ine de eklenir.
+
+Kaynak araştırmasında Markdown bağlantıları ve arama metadatasına bağlanabilen atıf işaretleri artık yerel olarak çözümlenir. Bir geçersiz kaynak bütün araştırmayı durdurmaz. Arama kaydıyla eşleştirilemeyen kaynaklar doğrulama sağlamaz; tamamlanan ve eksik alanlar ayrı gösterilir. Eski ham `Invalid url` dökümleri arayüzde anlaşılır mesajla gösterilir.
+
 ### Otomatik üretim
 
 1. **Stüdyo ayarları → OpenAI API bağlantısı** alanına API anahtarını gir ve **Anahtarı bağla ve kontrol et** düğmesine bas. Anahtarı sohbete yazma. Bu kontrol ücretli üretim yapmaz. Anahtar yalnızca sunucu belleğinde tutulur; yeniden başlatmada tekrar bağlanır. Kalıcı bağlantı için Codespaces ortam sırrı olarak `STADIUM_OPENAI_API_KEY` tanımlanabilir.

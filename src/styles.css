@@ -3848,3 +3848,15 @@ details summary {
   width: 100%;
   min-width: 0;
 }
+
+.quality-finding {
+  padding: 12px;
+  border-left: 3px solid var(--accent);
+  margin: 12px 0;
+  background: #f5f8fc;
+}
+.story-panel details img {
+  max-width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+}

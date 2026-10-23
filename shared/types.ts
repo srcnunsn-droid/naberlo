@@ -70,10 +70,23 @@ export interface Project {
   story?: {
     recipeId: string;
     autoAssemble: boolean;
+    continuity?: boolean;
+    autoQuality?: boolean;
+    previewFirst?: boolean;
     title: string;
     closing: string;
     audio: 'source' | 'mute';
     soundtrackId?: string;
+  };
+  animatic?: {
+    id: string;
+    status: 'running' | 'done' | 'failed';
+    configuration: string;
+    filename?: string;
+    url?: string;
+    seconds?: number;
+    error?: string;
+    approvedAt?: string;
   };
   references?: ReferenceVideo[];
   soundtracks?: { id: string; filename: string; name: string; seconds: number }[];
@@ -118,7 +131,25 @@ export interface Project {
     warnings: string[];
   };
 }
+export interface QualityReport {
+  id: string;
+  status: 'running' | 'done' | 'failed';
+  startedAt: string;
+  summary?: string;
+  error?: string;
+  sampledAt?: number[];
+  findings?: {
+    time: number;
+    category: 'architecture' | 'identity' | 'physics' | 'camera' | 'continuity';
+    severity: 'warning' | 'critical';
+    observation: string;
+    repair: string;
+  }[];
+}
 export interface VideoAsset {
+  endFrame?: { filename: string; url: string; at: number };
+  continuity?: { sourceVideoId: string; filename: string };
+  quality?: QualityReport;
   id: string;
   code: string;
   url: string;
@@ -189,6 +220,7 @@ export interface Job {
   configuration?: string;
   allowDraftReferences?: boolean;
   runId?: string;
+  continuity?: { sourceVideoId: string; filename: string };
 }
 export interface CatalogStats {
   total: number;

@@ -18,6 +18,8 @@ const { store, mediaDir } = await import('./store');
 const { importReference, inspectMedia, mediaCommand } = await import('./media');
 const { startMovie, recoverMovies, videoChecks, movieSignature, movieInputs } =
   await import('./movie');
+const { startAnimatic, approveAnimatic, recoverAnimatics } = await import('./animatic');
+const { analyzeVideo, recoverVideoQuality } = await import('./video-quality');
 const { analyzeReference, recoverReferenceAnalysis } = await import('./reference-analysis');
 const { providerInfo, enqueue, cancelJob, saveImage, invalidateDescendants } =
   await import('./provider');
@@ -168,6 +170,9 @@ function validCode(p: Project, code: string) {
 const storySchema = z.object({
   recipeId: z.enum(storyRecipes.map((r) => r.id) as [string, ...string[]]),
   autoAssemble: z.boolean(),
+  continuity: z.boolean().optional(),
+  autoQuality: z.boolean().optional(),
+  previewFirst: z.boolean().optional(),
   title: z.string().max(90),
   closing: z.string().max(90),
   audio: z.enum(['source', 'mute']),
@@ -259,6 +264,16 @@ app.post('/api/projects/:id/soundtracks', mediaUpload.single('audio'), async (re
   } finally {
     fs.rmSync(req.file!.path, { force: true });
   }
+});
+app.post('/api/projects/:id/animatic', (req, res) =>
+  res.status(202).json(startAnimatic(getProject(req.params.id))),
+);
+app.post('/api/projects/:id/animatic/:animaticId/approve', (req, res) =>
+  res.json(approveAnimatic(getProject(req.params.id), req.params.animaticId)),
+);
+app.post('/api/projects/:id/videos/:videoId/analyze', (req, res) => {
+  z.object({ confirmed: z.literal(true) }).parse(req.body);
+  res.status(202).json(analyzeVideo(getProject(req.params.id), req.params.videoId));
 });
 app.post('/api/projects/:id/movie', (req, res) => {
   const input = z
@@ -818,7 +833,13 @@ app.get('/api/projects/:id/export', async (req, res) => {
   for (const audio of p.soundtracks || [])
     if (fs.existsSync(path.join(mediaDir, audio.filename)))
       zip.file(path.join(mediaDir, audio.filename), { name: `soundtracks/${audio.filename}` });
+  if (p.animatic?.filename && fs.existsSync(path.join(mediaDir, p.animatic.filename)))
+    zip.file(path.join(mediaDir, p.animatic.filename), { name: 'preview/animatic.mp4' });
   for (const video of p.videos || []) {
+    if (video.endFrame && fs.existsSync(path.join(mediaDir, video.endFrame.filename)))
+      zip.file(path.join(mediaDir, video.endFrame.filename), {
+        name: `continuity/${video.endFrame.filename}`,
+      });
     const file = path.join(mediaDir, video.filename);
     if (fs.existsSync(file))
       zip.file(file, { name: `videos/${video.code}-review-${video.id}.mp4` });
@@ -856,6 +877,8 @@ app.listen(Number(process.env.PORT) || 3001, host, () => {
   console.log(`Naberlo API listening on ${host}:${process.env.PORT || 3001}`);
   recoverResearch();
   recoverMovies();
+  recoverAnimatics();
+  recoverVideoQuality();
   recoverReferenceAnalysis();
   startAutomationWorker();
   startVideoWorker();

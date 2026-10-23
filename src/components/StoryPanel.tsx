@@ -2,24 +2,32 @@ import { useEffect, useRef, useState } from 'react';
 import { Film, Upload, Download, Play, Check, Save } from 'lucide-react';
 import type { Project } from '../../shared/types';
 import { storyRecipes, storyRecipe } from '../../shared/story';
-import { accepted, clipPairs } from '../../shared/engine';
-import { automationView, projectSignature } from '../../shared/automation';
+import { currentVideo, animaticSignature, previousContinuousCode } from '../../shared/video-state';
+import { projectSignature } from '../../shared/automation';
 import { api, post, authHeaders, download } from '../api';
 
 function PrivateMedia({
   url,
   video = false,
   label,
+  seek,
 }: {
   url: string;
   video?: boolean;
   label: string;
+  seek?: number;
 }) {
+  const videoElement = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (seek !== undefined) setOpened(true);
+  }, [seek]);
   const [source, setSource] = useState(''),
     [opened, setOpened] = useState(!video),
     [error, setError] = useState('');
   useEffect(() => {
     if (!opened) return;
+    setSource('');
+    setError('');
     let alive = true,
       object = '';
     fetch(url, { headers: authHeaders() })
@@ -40,9 +48,21 @@ function PrivateMedia({
       if (object) URL.revokeObjectURL(object);
     };
   }, [url, opened]);
+  useEffect(() => {
+    if (videoElement.current && seek !== undefined) videoElement.current.currentTime = seek;
+  }, [seek, source]);
   return source ? (
     video ? (
-      <video controls playsInline src={source} aria-label={label} />
+      <video
+        ref={videoElement}
+        controls
+        playsInline
+        src={source}
+        aria-label={label}
+        onLoadedMetadata={() => {
+          if (videoElement.current && seek !== undefined) videoElement.current.currentTime = seek;
+        }}
+      />
     ) : (
       <img src={source} alt={label} />
     )
@@ -74,6 +94,10 @@ export function StoryPanel({
     [closing, setClosing] = useState(p.story?.closing || ''),
     [audio, setAudio] = useState<'source' | 'mute'>(p.story?.audio || 'source'),
     [auto, setAuto] = useState(p.story?.autoAssemble ?? true),
+    [continuity, setContinuity] = useState(p.story?.continuity ?? false),
+    [autoQuality, setAutoQuality] = useState(p.story?.autoQuality ?? false),
+    [previewFirst, setPreviewFirst] = useState(p.story?.previewFirst ?? false),
+    [seekTimes, setSeekTimes] = useState<Record<string, number>>({}),
     [soundtrack, setSoundtrack] = useState(p.story?.soundtrackId || '');
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
@@ -96,6 +120,8 @@ export function StoryPanel({
   const running =
     watchClips ||
     p.movie?.status === 'running' ||
+    p.animatic?.status === 'running' ||
+    p.videos?.some((v) => v.quality?.status === 'running') ||
     p.references?.some((r) => r.analysis?.status === 'running');
   useEffect(() => {
     if (!running) return;
@@ -152,19 +178,15 @@ export function StoryPanel({
   }
   const recipe = storyRecipe(p),
     selected = storyRecipes.find((r) => r.id === recipeId)!;
-  const view = automationView(p);
-  const clips =
-    recipe?.shots.map(([code]) => {
-      const pair = clipPairs.find((c) => c[0] === code)!;
-      const ids = pair.slice(2).map((c) => accepted(view, c)?.id);
-      return p.videos?.findLast(
-        (v) =>
-          v.code === code &&
-          v.configuration === projectSignature(p) &&
-          v.qc?.status !== 'rejected' &&
-          JSON.stringify(v.references) === JSON.stringify(ids),
-      );
-    }) || [];
+  const clips = recipe?.shots.map(([code]) => currentVideo(p, code)) || [];
+  let previewIssue = '',
+    previewStale = false;
+  try {
+    previewStale = p.animatic?.configuration !== animaticSignature(p);
+  } catch (e) {
+    previewIssue = (e as Error).message;
+    previewStale = true;
+  }
   const movieStale =
     p.movie?.configuration !==
     JSON.stringify({
@@ -178,6 +200,9 @@ export function StoryPanel({
     closing !== (p.story?.closing || '') ||
     audio !== (p.story?.audio || 'source') ||
     auto !== (p.story?.autoAssemble ?? true) ||
+    continuity !== (p.story?.continuity ?? false) ||
+    autoQuality !== (p.story?.autoQuality ?? false) ||
+    previewFirst !== (p.story?.previewFirst ?? false) ||
     soundtrack !== (p.story?.soundtrackId || '');
   return (
     <section className="panel story-panel">
@@ -251,6 +276,35 @@ export function StoryPanel({
         <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
         Üretim bitince final MP4'ü otomatik birleştir
       </label>
+      <label className="automation-check">
+        <input
+          type="checkbox"
+          checked={continuity}
+          onChange={(e) => setContinuity(e.target.checked)}
+        />
+        Aynı sahnenin devamında önceki klibin son karesini kullan
+      </label>
+      <label className="automation-check">
+        <input
+          type="checkbox"
+          checked={previewFirst}
+          onChange={(e) => setPreviewFirst(e.target.checked)}
+        />
+        Video üretiminden önce hareketli taslağı hazırla ve onayımı bekle
+      </label>
+      <label className="automation-check">
+        <input
+          type="checkbox"
+          checked={autoQuality}
+          onChange={(e) => setAutoQuality(e.target.checked)}
+        />
+        Her klipten sonra AI görsel kontrolü yap · ek API ücreti
+      </label>
+      <p className="small muted">
+        Son kare aktarımı aynı kamera ve sahne için uygulanır; yeni çekimlerde kendi başlangıç
+        görseli kullanılır. Devamlılık seçimini değiştirmek yeni video üretimi gerektirir; mevcut
+        görseller korunur. AI kontrolünde bulgu çıkarsa sonraki üretim incelemeni bekler.
+      </p>
       <button
         className="button primary"
         disabled={busy || !dirty || p.movie?.status === 'running'}
@@ -266,6 +320,9 @@ export function StoryPanel({
                   closing,
                   audio,
                   autoAssemble: auto,
+                  continuity,
+                  autoQuality,
+                  previewFirst,
                   ...(soundtrack ? { soundtrackId: soundtrack } : {}),
                 },
               }),
@@ -294,6 +351,63 @@ export function StoryPanel({
             </li>
           ))}
         </ol>
+      )}
+      {!!recipe && (
+        <div className="movie-result">
+          <strong>Üretim öncesi hareketli taslak</strong>
+          <p className="small">
+            Mevcut başlangıç/final görsellerini sahne süreleriyle oynatır. Gerçek AI hareketini
+            göstermez. Hazırlama ve indirme yeni API isteği oluşturmaz.
+          </p>
+          {previewIssue && <p className="small">{previewIssue}</p>}
+          <button
+            className="button"
+            disabled={
+              busy || dirty || !capable || !!previewIssue || p.animatic?.status === 'running'
+            }
+            onClick={() => void action(() => post<Project>(`/api/projects/${p.id}/animatic`))}
+          >
+            {p.animatic?.status === 'running' ? 'Taslak hazırlanıyor…' : 'Hareketli taslak oluştur'}
+          </button>
+          {p.animatic?.status === 'done' && p.animatic.url && (
+            <>
+              <p>
+                {previewStale
+                  ? 'Eski taslak: görsel veya ayarlar değişti.'
+                  : `${p.animatic.seconds?.toFixed(1)} sn · güncel taslak`}
+              </p>
+              <PrivateMedia url={p.animatic.url} video label="Hareketli taslağı izle" />
+              <button
+                className="button"
+                onClick={() =>
+                  void download(p.animatic!.url!, 'naberlo-taslak.mp4').catch((e) =>
+                    setError(e.message),
+                  )
+                }
+              >
+                Taslağı indir
+              </button>
+              <button
+                className="button primary"
+                disabled={busy || dirty || previewStale || !!p.animatic.approvedAt}
+                onClick={() =>
+                  void action(() =>
+                    post<Project>(`/api/projects/${p.id}/animatic/${p.animatic!.id}/approve`),
+                  )
+                }
+              >
+                {p.animatic.approvedAt && !previewStale
+                  ? 'Taslak onaylandı'
+                  : 'Taslağı onayla · video aşamasına geç'}
+              </button>
+              <p className="small">
+                Aktif üretim akışı taslak bekliyorsa onaydan sonra ücretli video aşamasına devam
+                eder.
+              </p>
+            </>
+          )}
+          {p.animatic?.error && <p role="alert">{p.animatic.error}</p>}
+        </div>
       )}
       <details>
         <summary>10 referansın analiz özeti ve sınırları</summary>
@@ -400,7 +514,8 @@ export function StoryPanel({
               checked={billing}
               onChange={(e) => setBilling(e.target.checked)}
             />
-            Tek sahneyi yeniden üretmenin ayrıca API ücreti oluşturacağını biliyorum.
+            Tek sahneyi yeniden üretmenin veya AI görsel kontrolünün ayrıca API ücreti
+            oluşturacağını biliyorum.
           </label>
           {recipe.shots.map(([code, seconds], i) => {
             const v = clips[i],
@@ -418,7 +533,64 @@ export function StoryPanel({
                 </strong>
                 {v && (
                   <>
-                    <PrivateMedia url={v.url} video label={`${code} klibini izle`} />
+                    <PrivateMedia
+                      url={v.url}
+                      video
+                      label={`${code} klibini izle`}
+                      seek={seekTimes[v.id]}
+                    />
+                    <p className="small">
+                      {v.continuity
+                        ? 'Açılış: önceki klibin gerçek son karesi.'
+                        : previousContinuousCode(p, code)
+                          ? 'Son kare aktarımı bekleniyor.'
+                          : 'Açılış: bu çekimin kendi görseli.'}
+                    </p>
+                    {v.endFrame && (
+                      <details>
+                        <summary>Aktarılacak son kare</summary>
+                        <PrivateMedia url={v.endFrame.url} label={`${code} gerçek son kare`} />
+                      </details>
+                    )}
+                    <button
+                      className="button"
+                      disabled={busy || !configured || !billing || v.quality?.status === 'running'}
+                      onClick={() =>
+                        void action(() =>
+                          post<Project>(`/api/projects/${p.id}/videos/${v.id}/analyze`, {
+                            confirmed: true,
+                          }),
+                        )
+                      }
+                    >
+                      {v.quality?.status === 'running'
+                        ? 'Klip kareleri inceleniyor…'
+                        : 'AI ile klibi kontrol et · API'}
+                    </button>
+                    {v.quality?.summary && <p>{v.quality.summary}</p>}
+                    {v.quality?.status === 'done' && !v.quality.findings?.length && (
+                      <p className="small">
+                        Örnek karelerde sorun bildirilmedi. Bu, insan kalite onayı değildir.
+                      </p>
+                    )}
+                    {v.quality?.findings?.map((finding, index) => (
+                      <article className="quality-finding" key={index}>
+                        <button
+                          className="button"
+                          onClick={() => setSeekTimes({ ...seekTimes, [v.id]: finding.time })}
+                        >
+                          {finding.time.toFixed(2)} sn ·{' '}
+                          {finding.severity === 'critical' ? 'Belirgin sorun' : 'İncelenmeli'}
+                        </button>
+                        <p>{finding.observation}</p>
+                        <p className="small">Düzeltme önerisi: {finding.repair}</p>
+                      </article>
+                    ))}
+                    {v.quality?.error && <p role="alert">{v.quality.error}</p>}
+                    <p className="small muted">
+                      AI kontrolü 12 örnek kare ve hedef görselleri karşılaştırır; sesi dinlemez ve
+                      her hatayı yakalayamaz. Aşağıdaki insan kontrolünü otomatik doldurmaz.
+                    </p>
                     <div className="story-settings">
                       <label>
                         Giriş (sn)

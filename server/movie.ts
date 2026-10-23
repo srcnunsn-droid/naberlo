@@ -4,8 +4,9 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import type { Project, VideoAsset } from '../shared/types';
 import { storyRecipe } from '../shared/story';
-import { automationView, projectSignature } from '../shared/automation';
-import { accepted, clipPairs } from '../shared/engine';
+import { projectSignature } from '../shared/automation';
+import { currentVideo } from '../shared/video-state';
+export { currentVideo } from '../shared/video-state';
 import { store, mediaDir } from './store';
 import { inspectMedia, mediaCommand } from './media';
 
@@ -16,18 +17,6 @@ export const videoChecks = [
   'Arma ve yazılar doğru',
   'Son kare sonraki sahneyle uyumlu',
 ];
-export function currentVideo(p: Project, code: string) {
-  const view = automationView(p),
-    pair = clipPairs.find((v) => v[0] === code);
-  const ids = pair?.slice(2).map((c) => accepted(view, c)?.id);
-  return p.videos?.findLast(
-    (v) =>
-      v.code === code &&
-      v.qc?.status !== 'rejected' &&
-      v.configuration === projectSignature(p) &&
-      JSON.stringify(v.references) === JSON.stringify(ids),
-  );
-}
 export function movieInputs(p: Project) {
   const recipe = storyRecipe(p);
   if (!recipe) throw new Error('Önce bir kısa film akışı seçin.');

@@ -32,6 +32,10 @@ test('film recipe persists, real reference upload yields twelve frames, and mobi
     await page.locator('.project-link').first().click();
     await page.getByRole('combobox', { name: 'Film akışı', exact: true }).selectOption('road');
     await page.getByLabel('Açılış yazısı', { exact: true }).fill('İstanbul: yeni bir gece');
+    await page.getByLabel('Aynı sahnenin devamında önceki klibin son karesini kullan').check();
+    await page
+      .getByLabel('Video üretiminden önce hareketli taslağı hazırla ve onayımı bekle')
+      .check();
     await page.getByRole('button', { name: 'Film akışını kaydet', exact: true }).click();
     await expect(page.locator('.story-timeline li')).toHaveCount(3);
     await expect(
@@ -39,6 +43,12 @@ test('film recipe persists, real reference upload yields twelve frames, and mobi
     ).toBeDisabled();
     const saved = await (await request.get(`/api/projects/${p.id}`)).json();
     expect(saved.story.recipeId).toBe('road');
+    expect(saved.story.continuity).toBe(true);
+    expect(saved.story.previewFirst).toBe(true);
+    expect(saved.story.autoQuality).toBe(false);
+    await expect(
+      page.getByRole('button', { name: 'Hareketli taslak oluştur', exact: true }),
+    ).toBeDisabled();
     expect(saved.story.title).toBe('İstanbul: yeni bir gece');
     await page.locator('.story-panel summary').filter({ hasText: 'Referans videolarım' }).click();
     await page
