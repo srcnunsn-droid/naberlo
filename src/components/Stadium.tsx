@@ -3,7 +3,7 @@ import { useId } from 'react';
 export function Stadium({
   seed = 0,
   large = false,
-  color = '#c5ed8d',
+  color = '#27866a',
   empty = false,
 }: {
   seed?: number;
@@ -36,13 +36,13 @@ export function Stadium({
     >
       <defs>
         <linearGradient id={`${id}-wall`} x1="0" y1="0" x2="0" y2="1">
-          <stop stopColor="#69776b" />
-          <stop offset="1" stopColor="#242e28" />
+          <stop stopColor="#c0ccd4" />
+          <stop offset="1" stopColor="#7b929d" />
         </linearGradient>
         <linearGradient id={`${id}-roof`} x1="0" y1="0" x2="0.8" y2="1">
-          <stop stopColor="#bac7a9" />
-          <stop offset=".35" stopColor="#71816c" />
-          <stop offset="1" stopColor="#34463b" />
+          <stop stopColor="#ffffff" />
+          <stop offset=".35" stopColor="#dae5e9" />
+          <stop offset="1" stopColor="#a5bbc4" />
         </linearGradient>
         <linearGradient id={`${id}-pitch`}>
           <stop stopColor="#476c3e" />
@@ -59,7 +59,7 @@ export function Stadium({
           patternUnits="userSpaceOnUse"
           patternTransform="rotate(-15)"
         >
-          <path d="M50 0H0V28" fill="none" stroke="#c8dec2" strokeOpacity=".06" />
+          <path d="M50 0H0V28" fill="none" stroke="#4f7c68" strokeOpacity=".10" />
         </pattern>
       </defs>
       <rect width="800" height="490" fill={`url(#${id}-grid)`} />
@@ -71,13 +71,13 @@ export function Stadium({
       >
         <path
           d="M55 286L353 102 739 272 437 451Z"
-          fill="#202a23"
-          stroke="#405043"
+          fill="#e1e9e7"
+          stroke="#bacac4"
           strokeWidth="1"
         />
         <path
           d="M30 330L407 112M180 408L612 158M95 200L625 439M192 129L745 363"
-          stroke="#596653"
+          stroke="#9eafa9"
           strokeOpacity=".35"
           strokeWidth="8"
         />
@@ -88,13 +88,13 @@ export function Stadium({
             <path
               key={i}
               d={`M${x} ${y}l30 -16 32 14 -30 17Z m0 0v13l32 15 30 -17v-14`}
-              fill="#2a352d"
-              stroke="#425042"
+              fill="#d0dcdb"
+              stroke="#a5b7b3"
               strokeWidth=".6"
             />
           );
         })}
-        <ellipse cx="412" cy="315" rx="263" ry="114" fill="#0b130d" opacity=".75" />
+        <ellipse cx="412" cy="315" rx="263" ry="114" fill="#75948a" opacity=".18" />
         {empty ? (
           <>
             <ellipse
@@ -142,7 +142,7 @@ export function Stadium({
               cy="235"
               rx="246"
               ry="112"
-              fill="#17251c"
+              fill="#456358"
               stroke="#a8ba9a"
               strokeWidth="2"
             />
@@ -213,7 +213,7 @@ export function Stadium({
             )}
             <path
               d="M366 363L366 337 419 337 419 363"
-              fill="#111c15"
+              fill="#708f86"
               stroke={color}
               strokeOpacity=".6"
             />
