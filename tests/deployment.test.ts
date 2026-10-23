@@ -19,6 +19,7 @@ test('public hosting health check and login shell keep project API and media pri
       STADIUM_ACCESS_TOKEN: token,
       STADIUM_OPENAI_API_KEY: '',
       OPENAI_API_KEY: '',
+      STADIUM_PUBLIC_ORIGIN: 'https://test-workspace-4182.app.github.dev',
     },
     stdio: 'pipe',
   });
@@ -54,6 +55,16 @@ test('public hosting health check and login shell keep project API and media pri
     const clubs = await fetch(base + '/api/clubs?q=Fenerbahce', { headers });
     assert.equal(clubs.status, 200);
     assert.ok((await clubs.json()).items.length > 0);
+    const forwarded = await fetch(base + '/api/projects', {
+      method: 'POST',
+      headers: {
+        ...headers,
+        Origin: 'https://test-workspace-4182.app.github.dev',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ clubId: 'missing-club' }),
+    });
+    assert.equal(forwarded.status, 404);
     assert.equal(
       (
         await fetch(base + '/api/projects', {

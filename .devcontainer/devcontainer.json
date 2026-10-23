@@ -1,0 +1,15 @@
+{
+  "name": "Naberlo — Tarayıcıda Aç",
+  "image": "node:24-bookworm",
+  "forwardPorts": [3001],
+  "portsAttributes": {
+    "3001": {
+      "label": "Naberlo — Programı Aç",
+      "onAutoForward": "openBrowser",
+      "protocol": "http"
+    }
+  },
+  "postCreateCommand": "npm ci --include=dev --no-audit --no-fund && npm run build",
+  "postStartCommand": "bash .devcontainer/start.sh",
+  "waitFor": "postCreateCommand"
+}

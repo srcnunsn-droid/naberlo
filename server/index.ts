@@ -44,7 +44,12 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   if (['POST', 'PATCH', 'DELETE'].includes(req.method) && req.get('origin')) {
     try {
-      if (new URL(req.get('origin')!).host !== req.get('host'))
+      const origin = new URL(req.get('origin')!);
+      const configuredOrigin = process.env.STADIUM_PUBLIC_ORIGIN;
+      if (
+        origin.host !== req.get('host') &&
+        (!configuredOrigin || origin.origin !== new URL(configuredOrigin).origin)
+      )
         return res.status(403).json({ error: 'Farklı kaynaktan yazma isteği reddedildi.' });
     } catch {
       return res.status(403).json({ error: 'Geçersiz kaynak.' });

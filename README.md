@@ -2,7 +2,21 @@
 
 Türkçe arayüzlü, kalıcı projelerle çalışan stadyum prodüksiyon uygulaması. Kullanıcının **STADIUM PRODUCTION ENGINE MASTER v43** iş akışını kulüp araştırması, referans görselleri, mimari planlama, görsel üretimi ve video prompt paketlerine dönüştürür.
 
-## Windows ve telefonda ücretsiz açma
+## İş bilgisayarında veya telefonda kurulum yapmadan açma
+
+[Tarayıcıda Naberlo başlat](https://codespaces.new/srcnunsn-droid/naberlo?ref=feat%2Fstadium-production-studio)
+
+1. Bağlantıyı açıp kendi GitHub hesabına giriş yap. Dalın **feat/stadium-production-studio** olduğunu kontrol et.
+2. **Create codespace** düğmesine bas. Paketler bulutta otomatik kurulur; ilk açılış birkaç dakika sürebilir.
+3. Uygulama sekmesi otomatik açılmazsa alttaki **Ports** sekmesinde **3001 / Naberlo** satırının tarayıcı simgesine bas. Port görünürlüğünü **Private** olarak bırak.
+
+Bu yöntem iş bilgisayarına veya telefona yazılım kurmaz. Kendi bilgisayarının açık olması gerekmez. Telefonundan aynı GitHub hesabıyla bu uygulama adresini açabilirsin. Codespace uykuya geçerse [Codespaces sayfasından](https://github.com/codespaces) yeniden başlat.
+
+Kişisel GitHub hesaplarının Codespaces için aylık ücretsiz kullanım kotası vardır; sınırsız ücretsiz barındırma değildir. Kota veya hesap politikası izin vermiyorsa açılmayabilir. **Ücretli kullanımı etkinleştirme veya ödeme bilgisi ekleme.** İşin bitince Codespace'i durdur; projelerin o Codespace'in `.data` klasöründe kalır. Codespace'i silmek projeleri de siler; önemli çıktıları indir.
+
+Bu depoda tarayıcıdan başlatma ayarları hazırdır; bu sohbetten hesabın adına bir Codespace oluşturulmamıştır. Otomatik görsel üretimi ayrı API hesabı gerektirir; katalog, proje ve promptlar anahtarsız kullanılabilir.
+
+## Kendi Windows bilgisayarında ve aynı Wi-Fi'deki telefonda açma
 
 Sunucu kiralaman gerekmez. Program Windows bilgisayarında çalışır; aynı Wi-Fi ağına bağlı telefonundan da açabilirsin.
 
