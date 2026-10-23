@@ -6,6 +6,9 @@ test('desktop production workflow, truthful generation state, persistence and ex
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+  });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Bir kulüp. Sonsuz olasılık.' })).toBeVisible();
   await page.screenshot({ path: '/tmp/naberlo-home.png', fullPage: true });
@@ -26,6 +29,8 @@ test('desktop production workflow, truthful generation state, persistence and ex
   await expect(page.getByRole('textbox', { name: 'Üretim promptu' })).toHaveValue(
     /exactly 2 columns by 5 rows/,
   );
+  await page.getByRole('button', { name: 'Kopyala', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Prompt kopyalandı');
   await page.getByRole('button', { name: 'Kapat', exact: true }).click();
   await page.getByRole('button', { name: 'Yeni seri', exact: true }).click();
   await expect(page.getByText('B2-C1-01', { exact: true })).toBeVisible();

@@ -2,21 +2,21 @@
 
 Türkçe arayüzlü, kalıcı projelerle çalışan stadyum prodüksiyon uygulaması. Kullanıcının **STADIUM PRODUCTION ENGINE MASTER v43** iş akışını kulüp araştırması, referans görselleri, mimari planlama, görsel üretimi ve video prompt paketlerine dönüştürür.
 
-## Tarayıcıdan, bilgisayara kurmadan açma
+## Windows ve telefonda ücretsiz açma
 
-GitHub sayfası uygulamanın kaynak kodudur; çalışan uygulama adresi değildir. Codex bulut ortamını yayınlamak da uygulamaya herkese açık bir web adresi oluşturmaz.
+Sunucu kiralaman gerekmez. Program Windows bilgisayarında çalışır; aynı Wi-Fi ağına bağlı telefonundan da açabilirsin.
 
-[Render panelini aç](https://dashboard.render.com/blueprints). Yayınlama ayarları bu depodaki `render.yaml` dosyasında hazır:
+1. Bilgisayara [Node.js 24 veya daha yeni LTS](https://nodejs.org/en/download) sürümünü bir kez kur.
+2. [Programı ZIP olarak indir](https://github.com/srcnunsn-droid/naberlo/archive/refs/heads/feat/stadium-production-studio.zip). ZIP'e sağ tıklayıp **Tümünü ayıkla** de.
+3. Çıkardığın klasörde **BASLAT.bat** dosyasına çift tıkla. İlk açılışta gereken paketler internetten indirilir; ardından tarayıcı açılır. Siyah pencereyi açık tut.
+4. Pencerede yazan **Giris kodu** ile giriş yap. Bu kod her açılışta değişir; projelerin silinmez.
+5. Telefonu bilgisayarla aynı Wi-Fi'ye bağla. Telefonun tarayıcısına penceredeki **TELEFONDAN AC** adresini yaz; aynı giriş kodunu kullan. Birden fazla adres varsa Wi-Fi bağlantına ait olanı dene.
 
-1. Render hesabına gir, **New Blueprint Instance** ile GitHub hesabındaki `srcnunsn-droid/naberlo` deposunu bağla.
-2. Dal olarak **`feat/stadium-production-studio`** seç. `main` dalında uygulama bulunmuyor.
-3. Plan ve disk ücretini inceleyip dağıtımı başlat. Bu yapılandırma **ücretli Starter sunucu ve 1 GB kalıcı disk** kullanır; ücret Render ekranında gösterilir. Kalıcı disk, projelerin ve yüklenen görsellerin yeniden başlatmada kaybolmasını önler.
-4. Servis **Live** olduğunda Render'ın verdiği **`https://…onrender.com`** adresini aç. Telefonda da aynı bağlantıyı kullanabilirsin.
-5. Giriş ekranında, Render servisinin **Environment** bölümünde otomatik oluşturulan **`STADIUM_ACCESS_TOKEN`** değerini kullan. Bu değeri sohbet veya GitHub üzerinden paylaşma.
+Windows güvenlik duvarı ağ izni sorarsa **Özel ağlar** için izin ver. Ev Wi-Fi ağının Windows'ta özel ağ olarak ayarlı olması gerekir. Mobil veri veya misafir Wi-Fi'siyle bu yerel bağlantı çalışmayabilir. Bilgisayar kapanırsa veya uykuya geçerse telefon bağlantısı da kapanır. İnternet modeminde port açman gerekmez.
 
-Görsel üretimini sonradan açmak için Render'ın aynı Environment bölümüne `STADIUM_OPENAI_API_KEY` ekleyip değişikliği dağıt. Bu anahtar olmadan katalog, proje, prompt, görsel yükleme ve dışa aktarma çalışır. Render hesabı ve dağıtım tamamlanana kadar canlı uygulama bağlantısı oluşmaz.
+Programı açmak, katalog, proje, prompt ve yüklemeleri kullanmak için ödeme veya API anahtarı gerekmez. Otomatik AI görsel üretimi ayrı bir sağlayıcı hesabı ve ücretli API gerektirir; bunu bağlamak zorunda değilsin.
 
-`/healthz` yalnızca servis durumunu bildirir; proje API'si ve görseller erişim anahtarıyla korunur. SQLite nedeniyle tek sunucu kullanılır. Disk kapasitesini kullanımına göre artırabilirsin.
+Projeler `.data` klasöründe tutulur. Güncellerken eski klasörü ve içindeki `.data` dosyalarını silme; yeni indirdiğin ayrı bir klasör eski projeleri otomatik taşımaz.
 
 ## Bilgisayarda başlatma
 

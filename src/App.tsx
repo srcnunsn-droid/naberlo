@@ -874,12 +874,24 @@ export default function App() {
             </span>
             <button
               className="button"
-              onClick={() =>
-                navigator.clipboard
-                  .writeText(prompt.text)
-                  .then(() => notify('Prompt kopyalandı'))
-                  .catch(() => setError('Kopyalama desteklenmiyor; metni seçerek kopyalayın.'))
-              }
+              onClick={async () => {
+                try {
+                  if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(prompt.text);
+                  } else {
+                    // Local Wi-Fi HTTP pages do not expose the modern clipboard API.
+                    const field = document.querySelector<HTMLTextAreaElement>('.prompt-output');
+                    if (!field) throw new Error('Prompt bulunamadı.');
+                    field.focus();
+                    field.select();
+                    field.setSelectionRange(0, field.value.length);
+                    if (!document.execCommand('copy')) throw new Error('Kopyalama desteklenmiyor.');
+                  }
+                  notify('Prompt kopyalandı');
+                } catch {
+                  setError('Kopyalama desteklenmiyor; metni seçerek kopyalayın.');
+                }
+              }}
             >
               <Copy size={16} />
               Kopyala
