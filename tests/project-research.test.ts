@@ -306,3 +306,227 @@ test('malformed research structure returns a readable message instead of raw val
     },
   );
 });
+
+test('fenced and keyed reports retain usable fields even when one field is malformed', async () => {
+  const { parseResearchReport } = await import('../server/research-report');
+  const r = report();
+  const parsed = parseResearchReport(
+    'Here is the result:\n```json\n' +
+      JSON.stringify({
+        clubQid: null,
+        facts: Object.fromEntries(
+          r.facts.map((f) => [
+            f.key,
+            {
+              ...f,
+              ...(f.key === 'city' ? { value: null } : {}),
+              ...(f.key === 'colors' ? { supported: 'false' } : {}),
+            },
+          ]),
+        ),
+        summary: null,
+      }) +
+      '\n```',
+  );
+  assert.ok(parsed);
+  assert.equal(parsed.clubQid, '');
+  assert.equal(parsed.facts.length, 7);
+  assert.equal(parsed.facts.find((f) => f.key === 'colors')?.supported, false);
+  const p = project();
+  research.applyEvidence(p, parsed, new Set(urls), [], new Date().toISOString());
+  assert.equal(p.facts.club.status, 'verified');
+  assert.equal(p.facts.city.status, 'unverified');
+  assert.equal(p.facts.colors.status, 'single-source');
+});
+
+function proseOutput() {
+  return Response.json({
+    status: 'completed',
+    output: [
+      {
+        type: 'web_search_call',
+        status: 'completed',
+        action: { sources: urls.map((url) => ({ url })) },
+      },
+      {
+        type: 'message',
+        content: [
+          {
+            type: 'output_text',
+            text: `Current Test club uses Test stadium in Test city. The official page ${urls[0]} and municipality ${urls[1]} agree on its identity and location. The venue has a river on the east and Station Road on the west.`,
+          },
+        ],
+      },
+    ],
+  });
+}
+
+test('prose research is structured once, missing Wikidata venue uses screened Commons candidates and unlocks R0', async () => {
+  const p = project();
+  const png = await sharp({
+    create: { width: 1200, height: 800, channels: 3, background: '#e5e8eb' },
+  })
+    .png()
+    .toBuffer();
+  let searches = 0,
+    extractions = 0,
+    screenings = 0,
+    commonsSearches = 0;
+  const stages: string[] = [];
+  const fake: typeof fetch = async (input, init) => {
+    const u = new URL(String(input));
+    if (u.hostname === 'api.openai.com') {
+      const body = JSON.parse(String(init?.body));
+      if (body.tools) {
+        searches++;
+        return proseOutput();
+      }
+      if (body.text.format.name === 'research_fields') {
+        extractions++;
+        assert.equal(body.tools, undefined, 'extraction cannot run another web search');
+        assert.deepEqual(
+          JSON.parse(body.input).sources,
+          urls.map((url, i) => ({ id: `S${i + 1}`, url })),
+        );
+        assert.deepEqual(
+          body.text.format.schema.properties.facts.items.properties.sources.items.enum,
+          ['S1', 'S2'],
+        );
+        const r = report();
+        r.stadiumQid = ''; // Official current venue need not exist in Wikidata's P115 yet.
+        r.facts = r.facts.map((f) => ({
+          ...f,
+          sources: ['S1'],
+          value: f.key === 'city' ? 'Test city' : f.value,
+        }));
+        return output(r);
+      }
+      screenings++;
+      assert.match(body.input[0].content[1].image_url, /^data:image\/png;base64,/);
+      return output({
+        suitable: screenings === 2,
+        reason:
+          screenings === 2
+            ? 'Full stadium exterior matches the sourced venue.'
+            : 'Interior view; insufficient surroundings.',
+      });
+    }
+    if (u.hostname === 'www.wikidata.org')
+      return Response.json({
+        entities: {
+          Q1: {
+            labels: { en: { value: 'Test club' } },
+            claims: { P856: [value('https://club.example')] },
+          },
+        },
+      });
+    if (u.hostname === 'commons.wikimedia.org') {
+      if (u.searchParams.get('list') === 'search') {
+        commonsSearches++;
+        assert.equal(u.searchParams.get('srsearch'), 'Test stadium Test city');
+        return Response.json({
+          query: { search: [{ title: 'File:Interior.png' }, { title: 'File:Aerial.png' }] },
+        });
+      }
+      return Response.json({
+        query: {
+          pages: {
+            '1': {
+              imageinfo: [
+                {
+                  thumburl: 'https://upload.wikimedia.org/image.png',
+                  descriptionurl: 'https://commons.wikimedia.org/wiki/File:Aerial.png',
+                  extmetadata: { LicenseShortName: { value: 'CC BY-SA 4.0' } },
+                },
+              ],
+            },
+          },
+        },
+      });
+    }
+    if (u.hostname === 'upload.wikimedia.org')
+      return new Response(png, { headers: { 'content-type': 'image/png' } });
+    throw new Error(`Unexpected host ${u.hostname}`);
+  };
+  const result = await research.researchProject(p, fake, {
+    progress: (message) => stages.push(message),
+  });
+  assert.equal(searches, 1);
+  assert.equal(extractions, 1);
+  assert.equal(commonsSearches, 1);
+  assert.equal(screenings, 2);
+  assert.ok(keys.every((key) => result.facts[key].status === 'verified'));
+  assert.equal(
+    result.facts.club.official,
+    true,
+    'missing venue must not discard the valid official club website',
+  );
+  assert.deepEqual(
+    result.assets.map((a) => a.status),
+    ['review', 'accepted'],
+  );
+  p.assets = result.assets;
+  assert.deepEqual(blockers(p, 'R0'), []);
+  assert.ok(stages.some((m) => m.includes('dönüştürülüyor')));
+  assert.ok(stages.some((m) => m.includes('fotoğrafı')));
+});
+
+test('failed extraction preserves its search checkpoint, resumes without another search and rejects invented source IDs', async () => {
+  const p = project();
+  p.id = 'resume-extraction';
+  let searches = 0,
+    extractions = 0;
+  const fake: typeof fetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body));
+    if (body.tools) {
+      searches++;
+      return proseOutput();
+    }
+    extractions++;
+    if (extractions === 1) return Response.json({ error: { message: 'Quota' } }, { status: 429 });
+    const r = report();
+    r.clubQid = r.stadiumQid = '';
+    r.facts = r.facts.map((f) => ({
+      ...f,
+      sources: f.key === 'club' ? ['S999', urls[0]] : ['S1', 'S2'],
+    }));
+    return output(r);
+  };
+  await assert.rejects(() => research.researchProject(p, fake, { resume: true }), /HTTP 429/);
+  assert.equal(extractions, 1, 'no automatic retry of a billed request');
+  assert.equal(p.facts.club.status, 'unverified');
+  const stages: string[] = [];
+  const result = await research.researchProject(p, fake, {
+    resume: true,
+    progress: (m) => stages.push(m),
+  });
+  assert.equal(searches, 1);
+  assert.equal(extractions, 2);
+  assert.equal(result.facts.club.status, 'unverified', 'only issued source IDs are accepted');
+  assert.equal(result.facts.stadium.status, 'verified');
+  assert.ok(stages[0].includes('Kaydedilmiş'));
+  // Successful completion removes the checkpoint. Another explicit run obtains fresh evidence.
+  await research.researchProject(p, fake, { resume: true });
+  assert.equal(searches, 2);
+});
+
+test('an unreadable required field is sent through bounded extraction instead of silently leaving its lock', async () => {
+  let calls = 0;
+  const result = await research.researchProject(project(), async (_input, init) => {
+    calls++;
+    const body = JSON.parse(String(init?.body));
+    const r = report();
+    r.clubQid = r.stadiumQid = '';
+    if (body.tools)
+      return output(
+        { ...r, facts: r.facts.map((f) => (f.key === 'city' ? { ...f, value: null } : f)) },
+        true,
+      );
+    assert.equal(body.text.format.name, 'research_fields');
+    r.facts = r.facts.map((f) => ({ ...f, sources: f.key === 'club' ? [] : ['S1', 'S2'] }));
+    return output(r);
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.facts.city.status, 'verified');
+  assert.equal(result.facts.club.status, 'unverified');
+});
