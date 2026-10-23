@@ -88,6 +88,7 @@ import { Stadium } from './components/Stadium';
 import { StandaloneBar } from './components/StandaloneBar';
 import { AutomationPanel, OpenAIConnection } from './components/AutomationPanel';
 import { ResearchPanel } from './components/ResearchPanel';
+import { StoryPanel } from './components/StoryPanel';
 import { automationView } from '../shared/automation';
 const standalone = import.meta.env.VITE_STANDALONE === '1';
 
@@ -1695,6 +1696,14 @@ function Studio({
       </div>
       {!standalone && (
         <ResearchPanel
+          project={p}
+          configured={configured}
+          onUpdate={(next) => onAutomationUpdate(next, jobs)}
+        />
+      )}
+      {!standalone && (
+        <StoryPanel
+          key={p.id}
           project={p}
           configured={configured}
           onUpdate={(next) => onAutomationUpdate(next, jobs)}

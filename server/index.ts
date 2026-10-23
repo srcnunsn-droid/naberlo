@@ -6,6 +6,7 @@ import multer from 'multer';
 import archiver from 'archiver';
 import sharp, { type Metadata } from 'sharp';
 import { z } from 'zod';
+import { storyRecipes } from '../shared/story';
 import { EnvHttpProxyAgent, setGlobalDispatcher } from 'undici';
 try {
   process.loadEnvFile();
@@ -14,6 +15,10 @@ try {
 }
 if (process.env.HTTPS_PROXY || process.env.HTTP_PROXY) setGlobalDispatcher(new EnvHttpProxyAgent());
 const { store, mediaDir } = await import('./store');
+const { importReference, inspectMedia, mediaCommand } = await import('./media');
+const { startMovie, recoverMovies, videoChecks, movieSignature, movieInputs } =
+  await import('./movie');
+const { analyzeReference, recoverReferenceAnalysis } = await import('./reference-analysis');
 const { providerInfo, enqueue, cancelJob, saveImage, invalidateDescendants } =
   await import('./provider');
 const { videoInfo, enqueueVideo, resumeVideo, startVideoWorker } = await import('./video');
@@ -35,7 +40,14 @@ import {
   sheetCode,
   resolvedReferences,
 } from '../shared/engine';
-import { cameras, reviewChecks, stages, variantCounts } from '../shared/catalog';
+import {
+  cameras,
+  reviewChecks,
+  stages,
+  variantCounts,
+  removals,
+  emergences,
+} from '../shared/catalog';
 import { researchClub } from './research';
 
 const app = express();
@@ -153,6 +165,137 @@ function validCode(p: Project, code: string) {
   );
 }
 
+const storySchema = z.object({
+  recipeId: z.enum(storyRecipes.map((r) => r.id) as [string, ...string[]]),
+  autoAssemble: z.boolean(),
+  title: z.string().max(90),
+  closing: z.string().max(90),
+  audio: z.enum(['source', 'mute']),
+  soundtrackId: z.string().uuid().optional(),
+});
+const incoming = path.join(mediaDir, '.incoming');
+fs.mkdirSync(incoming, { recursive: true });
+const mediaUpload = multer({ dest: incoming, limits: { fileSize: 100 * 1024 * 1024, files: 1 } });
+app.get('/api/film/catalog', (_req, res) =>
+  res.json({
+    recipes: storyRecipes,
+    studies: JSON.parse(fs.readFileSync('data/reference-studies.json', 'utf8')),
+    videoChecks,
+  }),
+);
+app.post('/api/projects/:id/references/:refId/analyze', (req, res) =>
+  res.status(202).json(analyzeReference(getProject(req.params.id), req.params.refId)),
+);
+app.get('/api/media/capabilities', async (_req, res) => {
+  try {
+    await mediaCommand('ffmpeg', ['-version'], 5000);
+    await mediaCommand('ffprobe', ['-version'], 5000);
+    res.json({ available: true });
+  } catch {
+    res.json({
+      available: false,
+      message: 'bash scripts/install-media-tools.sh komutuyla medya araçlarını kurun.',
+    });
+  }
+});
+app.post('/api/projects/:id/references', mediaUpload.single('video'), async (req, res) => {
+  if (!req.file) fail('MP4 veya MOV dosyası seçin.');
+  const id = String(req.params.id);
+  try {
+    if ((getProject(id).references?.length || 0) >= 20)
+      fail('Bir projede en fazla 20 referans video saklanır.');
+    const ref = await importReference(req.file!.path, req.file!.originalname);
+    const p = getProject(id);
+    p.references ||= [];
+    if (p.references.length >= 20) {
+      for (const file of [ref.filename, ...ref.frames.map((f) => f.filename)])
+        fs.rmSync(path.join(mediaDir, file), { force: true });
+      fail('Bir projede en fazla 20 referans video saklanır.');
+    }
+    p.references.push(ref);
+    res.status(201).json(store.save(p));
+  } finally {
+    fs.rmSync(req.file!.path, { force: true });
+  }
+});
+app.post('/api/projects/:id/soundtracks', mediaUpload.single('audio'), async (req, res) => {
+  if (!req.file) fail('Ses dosyası seçin.');
+  const id = String(req.params.id);
+  try {
+    if ((getProject(id).soundtracks?.length || 0) >= 5) fail('En fazla 5 ses dosyası saklanır.');
+    const info = await inspectMedia(req.file!.path);
+    if (!info.hasAudio || info.hasVideo) fail('Yalnızca ses içeren MP3, WAV veya M4A yükleyin.');
+    const p = getProject(id);
+    p.soundtracks ||= [];
+    if (p.soundtracks.length >= 5) fail('En fazla 5 ses dosyası saklanır.');
+    const audioId = randomUUID(),
+      filename = `${audioId}-soundtrack.m4a`;
+    await mediaCommand('ffmpeg', [
+      '-v',
+      'error',
+      '-protocol_whitelist',
+      'file,pipe',
+      '-i',
+      req.file!.path,
+      '-vn',
+      '-c:a',
+      'aac',
+      '-y',
+      path.join(mediaDir, filename),
+    ]);
+    const current = getProject(id);
+    current.soundtracks ||= [];
+    if (current.soundtracks.length >= 5) {
+      fs.rmSync(path.join(mediaDir, filename), { force: true });
+      fail('En fazla 5 ses dosyası saklanır.');
+    }
+    current.soundtracks.push({
+      id: audioId,
+      filename,
+      name: req.file!.originalname.slice(0, 180),
+      seconds: info.seconds,
+    });
+    res.status(201).json(store.save(current));
+  } finally {
+    fs.rmSync(req.file!.path, { force: true });
+  }
+});
+app.post('/api/projects/:id/movie', (req, res) => {
+  const input = z
+    .object({
+      clips: z
+        .array(
+          z.object({
+            videoId: z.string(),
+            in: z.number().min(0),
+            out: z.number().positive().max(180),
+          }),
+        )
+        .min(1)
+        .max(12)
+        .optional(),
+    })
+    .parse(req.body);
+  res.status(202).json(startMovie(getProject(req.params.id), input.clips));
+});
+app.post('/api/projects/:id/videos/:videoId/review', (req, res) => {
+  const p = getProject(req.params.id),
+    v = p.videos?.find((v) => v.id === req.params.videoId) || fail('Video bulunamadı.', 404);
+  const input = z
+    .object({
+      status: z.enum(['accepted', 'rejected']),
+      checks: z.array(z.enum(videoChecks as [string, ...string[]])),
+    })
+    .parse(req.body);
+  if (input.status === 'accepted' && new Set(input.checks).size !== videoChecks.length)
+    fail('Beş video kontrolünü tamamlayın.');
+  v.qc = { ...input, at: new Date().toISOString() };
+  if (p.movie)
+    p.movie.reviewed = p.movie.sourceIds.every(
+      (id) => p.videos?.find((video) => video.id === id)?.qc?.status === 'accepted',
+    );
+  res.json(store.save(p));
+});
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'naberlo', version: '1.0.0' }));
 app.get('/api/status', (_req, res) =>
   res.json({
@@ -257,10 +400,14 @@ app.post('/api/projects/:id/select-preview', (req, res) => {
   res.json(store.save(p));
 });
 app.post('/api/projects/:id/videos/generate', (req, res) => {
-  const { code, confirmed } = z
-    .object({ code: z.string(), confirmed: z.literal(true) })
+  const { code, useDraftReferences } = z
+    .object({
+      code: z.string(),
+      confirmed: z.literal(true),
+      useDraftReferences: z.boolean().default(false),
+    })
     .parse(req.body);
-  res.status(202).json(enqueueVideo(getProject(req.params.id), code));
+  res.status(202).json(enqueueVideo(getProject(req.params.id), code, useDraftReferences));
 });
 app.post('/api/jobs/:id/resume', (req, res) => res.json(resumeVideo(req.params.id)));
 app.get('/api/clubs', (req, res) => {
@@ -390,6 +537,7 @@ app.patch('/api/projects/:id', (req, res) => {
     .object({
       revision: z.number().int(),
       name: z.string().min(1).max(150).optional(),
+      story: storySchema.optional(),
       facts: factsSchema.optional(),
       referenceDate: z
         .string()
@@ -440,6 +588,21 @@ app.patch('/api/projects/:id', (req, res) => {
   if (input.variant && input.variant.celebration !== p.variant.celebration) {
     invalidateDescendants(p, 'SH0');
     for (const a of p.assets) if (a.code === 'SH0' && a.status === 'accepted') a.status = 'review';
+  }
+  if (input.story && input.story.recipeId !== p.story?.recipeId) {
+    const recipe = storyRecipes.find((r) => r.id === input.story!.recipeId)!;
+    p.variant = {
+      ...p.variant,
+      removal: removals.findIndex((r) => r.id === recipe.removal),
+      emergence: emergences.findIndex((r) => r.id === recipe.emergence),
+    };
+    for (const a of p.assets)
+      if (
+        !['SITE', 'CREST', 'PLAYER', 'R0', 'E0'].includes(a.code) &&
+        !isSheet(a.code) &&
+        a.status === 'accepted'
+      )
+        a.status = 'review';
   }
   Object.assign(p, input);
   res.json(store.save(p));
@@ -622,6 +785,39 @@ app.get('/api/projects/:id/export', async (req, res) => {
       }
     }
   }
+  if (
+    p.movie?.status === 'done' &&
+    p.movie.filename &&
+    fs.existsSync(path.join(mediaDir, p.movie.filename))
+  ) {
+    let current = false;
+    try {
+      current = p.movie.configuration === movieSignature(p, movieInputs(p));
+    } catch {}
+    zip.file(path.join(mediaDir, p.movie.filename), {
+      name: current ? 'FINAL-film.mp4' : 'previous-edit/film.mp4',
+    });
+  }
+  zip.append(
+    JSON.stringify(
+      {
+        recipe: storyRecipes.find((r) => r.id === p.story?.recipeId),
+        edit: p.movie,
+        jobs: store.jobs().filter((j) => j.projectId === p.id && j.kind === 'video'),
+      },
+      null,
+      2,
+    ),
+    { name: 'film-production.json' },
+  );
+  for (const ref of p.references || []) {
+    for (const file of [ref.filename, ...ref.frames.map((f) => f.filename)])
+      if (fs.existsSync(path.join(mediaDir, file)))
+        zip.file(path.join(mediaDir, file), { name: `references/${file}` });
+  }
+  for (const audio of p.soundtracks || [])
+    if (fs.existsSync(path.join(mediaDir, audio.filename)))
+      zip.file(path.join(mediaDir, audio.filename), { name: `soundtracks/${audio.filename}` });
   for (const video of p.videos || []) {
     const file = path.join(mediaDir, video.filename);
     if (fs.existsSync(file))
@@ -644,9 +840,10 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
       .status(400)
       .json({ error: error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') });
   if (error instanceof multer.MulterError)
-    return res
-      .status(400)
-      .json({ error: 'Dosya yüklenemedi. En fazla 15 MB ve tek görsel kullanın.' });
+    return res.status(400).json({
+      error:
+        'Dosya yüklenemedi. Her seferinde tek dosya seçin: görsel en fazla 15 MB, video/ses en fazla 100 MB.',
+    });
   const e = error as Error & { status?: number };
   res.status(e.status || 500).json({
     error: e.status
@@ -658,6 +855,8 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 app.listen(Number(process.env.PORT) || 3001, host, () => {
   console.log(`Naberlo API listening on ${host}:${process.env.PORT || 3001}`);
   recoverResearch();
+  recoverMovies();
+  recoverReferenceAnalysis();
   startAutomationWorker();
   startVideoWorker();
 });

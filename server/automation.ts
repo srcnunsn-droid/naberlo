@@ -10,6 +10,7 @@ import {
 import { cancelJob, enqueue, providerInfo } from './provider';
 import { enqueueVideo, resumeVideo } from './video';
 import { store } from './store';
+import { startMovie, movieInputs, movieSignature } from './movie';
 
 export function startAutomation(p: Project, options: AutomationOptions) {
   if (!providerInfo().configured) throw new Error('OpenAI API anahtarı bağlı değil.');
@@ -65,6 +66,14 @@ export function tickAutomation() {
       const view = automationView(p);
       const step = run.steps.find((s) => !['done', 'reused'].includes(s.status));
       if (!step) {
+        if (
+          p.story?.autoAssemble &&
+          run.phase === 'production' &&
+          run.steps.some((s) => s.kind === 'video')
+        ) {
+          const signature = movieSignature(p, movieInputs(p));
+          if (!(p.movie?.status === 'done' && p.movie.configuration === signature)) startMovie(p);
+        }
         run.status = 'done';
         store.run(run);
         continue;
@@ -93,6 +102,7 @@ export function tickAutomation() {
           p.videos?.some(
             (v) =>
               v.code === step.code &&
+              v.qc?.status !== 'rejected' &&
               v.configuration === projectSignature(p) &&
               JSON.stringify(v.references) === JSON.stringify(ids),
           )

@@ -6,12 +6,14 @@ import type { Job, Project, VideoAsset } from '../shared/types';
 import { accepted, clipPairs, imagePrompt, videoPrompts } from '../shared/engine';
 import { automationView, projectSignature } from '../shared/automation';
 import { mediaDir, store } from './store';
+import { shotDuration } from '../shared/story';
 
 export const videoInfo = () => ({
   configured: !!(process.env.STADIUM_OPENAI_API_KEY || process.env.OPENAI_API_KEY),
   provider: 'OpenAI Video',
   model: process.env.OPENAI_VIDEO_MODEL || 'sora-2',
   seconds: 12,
+  supportedSeconds: [4, 8, 12],
   size: '720x1280',
   supportsEndFrame: false,
   note: 'Sora tek başlangıç görseli alır. Final kare eşleşmesi ve mimari devamlılık kontrol bekler.',
@@ -39,19 +41,19 @@ function references(p: Project, code: string) {
   return [start, end];
 }
 export function soraPrompt(p: Project, code: string) {
+  const seconds = shotDuration(p, code);
   const clip = videoPrompts(p).find((c) => c.id === code);
   if (!clip?.ready) throw new Error('Video referansları eksik.');
   const content = clip.prompt
     .split('\n')
-    .filter((line) => !line.startsWith('INPUTS:') && !line.startsWith('TARGET:'))
+    .filter(
+      (line) =>
+        !line.startsWith('INPUTS:') && !line.startsWith('TARGET:') && !line.startsWith('TIMELINE:'),
+    )
     .join('\n')
-    .replace('10-second', '12-second')
-    .replace('0.0–0.8 s', '0.0–1.0 s')
-    .replace('0.8–6.5 s', '1.0–7.8 s')
-    .replace('6.5–8.5 s', '7.8–10.2 s')
-    .replace('8.5–10.0 s', '10.2–12.0 s');
+    .replace('10-second', `${seconds}-second`);
   const target = imagePrompt(p, clip.end).split('VISIBLE STATE\n')[1]?.split('\n\nCAMERA')[0] || '';
-  return `The uploaded input_reference is the actual opening frame. Preserve its stadium, perspective and city anchors. Only one image is supplied; no image-2 or end-frame control is available.\n${content}\nTARGET STATE DESCRIPTION: ${target}`;
+  return `The uploaded input_reference is the actual opening frame. Preserve its stadium, perspective and city anchors. Only one image is supplied; no image-2 or end-frame control is available.\n${content}\nTIMELINE: 0–0.5 s immediate visible trigger; 0.5–${(seconds * 0.72).toFixed(1)} s causal progression; ${(seconds * 0.72).toFixed(1)}–${seconds - 0.5} s complete the required final state; final 0.5 s readable hold.\nTARGET STATE DESCRIPTION: ${target}`;
 }
 export function enqueueVideo(
   p: Project,
@@ -85,13 +87,13 @@ export function enqueueVideo(
     createdAt: now,
     updatedAt: now,
     model: info.model,
-    seconds: info.seconds,
+    seconds: shotDuration(p, code),
     prompt: soraPrompt(v, code),
     referenceIds: refs.map((a) => a.id),
     configuration: projectSignature(p),
     allowDraftReferences,
     runId,
-    costNotice: '12 saniyelik video isteği OpenAI API hesabında ücret oluşturur.',
+    costNotice: `${shotDuration(p, code)} saniyelik video isteği OpenAI API hesabında ücret oluşturur.`,
   };
   store.job(job);
   return job;

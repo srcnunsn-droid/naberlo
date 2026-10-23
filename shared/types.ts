@@ -67,6 +67,29 @@ export interface Asset {
   };
 }
 export interface Project {
+  story?: {
+    recipeId: string;
+    autoAssemble: boolean;
+    title: string;
+    closing: string;
+    audio: 'source' | 'mute';
+    soundtrackId?: string;
+  };
+  references?: ReferenceVideo[];
+  soundtracks?: { id: string; filename: string; name: string; seconds: number }[];
+  movie?: {
+    id: string;
+    status: 'running' | 'done' | 'failed';
+    createdAt: string;
+    configuration: string;
+    sourceIds: string[];
+    edits?: { videoId: string; in: number; out: number }[];
+    url?: string;
+    filename?: string;
+    seconds?: number;
+    error?: string;
+    reviewed: boolean;
+  };
   id: string;
   name: string;
   club: Club;
@@ -104,8 +127,29 @@ export interface VideoAsset {
   model: string;
   seconds: number;
   status: 'review';
+  qc?: { status: 'accepted' | 'rejected'; checks: string[]; at: string };
   references: string[];
   configuration: string;
+  createdAt: string;
+}
+export interface ReferenceVideo {
+  analysis?: {
+    status: 'running' | 'done' | 'failed';
+    summary?: string;
+    recipeId?: string;
+    beats?: { from: number; to: number; observation: string; camera: string; risk: string }[];
+    error?: string;
+  };
+  id: string;
+  filename: string;
+  name: string;
+  url: string;
+  seconds: number;
+  width: number;
+  height: number;
+  fps: number;
+  hasAudio: boolean;
+  frames: { time: number; url: string; filename: string }[];
   createdAt: string;
 }
 export interface AutomationStep {

@@ -16,18 +16,38 @@ Kişisel GitHub hesaplarının Codespaces için aylık ücretsiz kullanım kotas
 
 Bu depoda tarayıcıdan başlatma ayarları hazırdır; bu sohbetten hesabın adına bir Codespace oluşturulmamıştır. Otomatik görsel/video üretimi ayrı API hesabı ve ilgili model erişimlerini gerektirir; katalog, proje ve promptlar anahtarsız kullanılabilir.
 
+### Referanslardan kısa film üretimi
+
+Gönderilen 10 videonun [ayrıntılı incelemesi](docs/REFERENCE-VIDEO-ANALYSIS.md) ve altı üretim akışı uygulamada yer alır. Ham referans videoları Git deposuna yüklenmez.
+
+Mevcut Codespace'i güncellemek için terminalinde:
+
+```bash
+git pull --ff-only && bash scripts/install-media-tools.sh && npm run build && bash .devcontainer/start.sh --restart
+```
+
+Sonra açık uygulama sayfasını yenile. `feat/stadium-production-studio` dalı kullanılmalıdır. Yeniden başlatmada yalnızca belleğe bağlanan API anahtarını tekrar bağla.
+
+Stüdyoda **Referanstan final filme** panelinden 16, 20, 24 veya 28 saniyelik bir akış seç ve **Film akışını kaydet**. Açılış/final yazısı, klip sesi ve ek ses dosyası burada ayarlanır. Seçimden sonra aşağıdaki iki aşamalı üretim yalnızca gereken sahneleri hazırlar. Cadde tifosu akışları uzun yaklaşım yolu ve kumaş hareketi için ayrı SF/VS sahneleri kullanır; oyunculu sürüm ayrıca PLAYER referansı ister.
+
+Üretim tamamlanınca **Final MP4'ü otomatik birleştir** seçeneği gerçek klipleri 1080×1920, 30 fps MP4'e dönüştürür. İnsan kontrolünden geçmemiş film taslak olarak etiketlenir. Klipleri izleyebilir, beş kalite ölçütüyle değerlendirebilir, yalnızca hatalı sahneyi yeniden üretebilir ve giriş/çıkış aralıklarını düzenleyebilirsin. **Final MP4 oluştur** yeniden kurgu yapar; AI kliplerini tekrar ücretli üretmez. API ile tek sahne yeniden üretimi ayrı ücretlidir.
+
+**Referans videolarım** alanı MP4/MOV yükleme, oynatma ve 12 zamanlı kare çıkarma sağlar (100 MB / 180 sn, en fazla 20 video). Saklanan oynatma kopyası en fazla 720×1280'e dönüştürülür; kaynak çözünürlüğü metadata olarak korunur. İsteğe bağlı **Kareleri AI ile analiz et** OpenAI'ye yalnızca bu kareleri gönderir, sesi incelemez. Analiz ve akış önerisi ayrıca API kullanır. Ses dosyaları MP3/WAV/M4A, 180 saniye ve 100 MB sınırındadır. Proje ZIP'i referans kopyalarını/karelerini, sesleri, gerçek sağlayıcı promptlarını ve kesme kararlarını da içerir. Eski ayarlara ait film `previous-edit/` altında ayrılır.
+
+FFmpeg, ffprobe ve DejaVu Sans yeni Codespace imajında hazırdır. Mevcut Linux/Codespaces kurulumunda `bash scripts/install-media-tools.sh` bunları kurar. Windows tarayıcısından buluttaki tüm özellikler kullanılabilir; Windows'ta yerel sunucu için FFmpeg kurulumu ayrıca gerekir ve bu kurgu sürümünün yazı tipi yolu Linux içindir. Tek HTML sürümü yeni sunucu tabanlı video araçlarını içermez.
+
 ### Otomatik üretim
 
 1. **Stüdyo ayarları → OpenAI API bağlantısı** alanına API anahtarını gir ve **Anahtarı bağla ve kontrol et** düğmesine bas. Anahtarı sohbete yazma. Bu kontrol ücretli üretim yapmaz. Anahtar yalnızca sunucu belleğinde tutulur; yeniden başlatmada tekrar bağlanır. Kalıcı bağlantı için Codespaces ortam sırrı olarak `STADIUM_OPENAI_API_KEY` tanımlanabilir.
 2. OpenAI bağlıyken yeni proje açınca **canlı kaynak araştırması otomatik başlar**. Eski projede **İnternetten otomatik tamamla** düğmesine bas. Kulüp, güncel stadyum, şehir, konum/şehir sabitleri, renkler, simge, mevcut kapasite ve arma araştırılır. Uygun gerçek SITE/CREST görselleri otomatik indirilip kontrol edilir; yalnızca kaynak veya görsel uygunluğu eksik kalan alanlar incelemeye bırakılır.
 3. **Otomatik prodüksiyon → 1 · Gerçek tasarım önizlemeleri** seç. İstek sayısını inceleyip başlat. İlk çalıştırmada R0, E0 ve 10 tasarım kolajı olmak üzere en fazla **12 görsel isteği** yapılır.
 4. Tasarım kartları artık gerçek kolaj hücrelerini gösterir. Birini açıp **Bu tasarımı seç** düğmesine bas.
-5. **2 · Seçilen tasarımın görselleri ve videoları** seç. Oyuncu tifosu hariç en fazla **18 görsel ve 11 adet 12 saniyelik video** üretilir. Oyuncu tifosu ayrıca açık seçim, doğrulanmış oyuncu bilgisi ve PLAYER görseli gerektirir.
-6. Tamamlanan MP4'leri uygulamada açabilir, tek tek veya proje ZIP'iyle indirebilirsin. Üretilen görseller insan tarafından kontrol edilmiş sayılmaz; kalite kontrolü bekler.
+5. **2 · Seçilen tasarımın görselleri ve videoları** seç. Film akışı kayıtlıysa yalnızca seçili akışın görselleri ve 4/8/12 saniyelik klipleri üretilir; örneğin hızlı yeniden doğuş 4 + 8 + 4 + 4 = 20 saniyedir. Akış seçilmemiş eski projelerde oyuncu tifosu hariç en fazla **18 görsel ve 11 adet 12 saniyelik video** üretilir. Oyuncu tifosu ayrıca açık seçim, doğrulanmış oyuncu bilgisi ve PLAYER görseli gerektirir.
+6. Tamamlanan klipleri ve birleştirilen final MP4'ü uygulamada açabilir, tek tek veya proje ZIP'iyle indirebilirsin. Üretilen görseller insan tarafından kontrol edilmiş sayılmaz; kalite kontrolü bekler.
 
 Mevcut geçerli çıktılar yeniden kullanılabilir. Akış ve işler SQLite'a kaydedilir. Hata durumunda ücretli oluşturma isteği kendiliğinden tekrarlanmaz. Sağlayıcı işlem kimliği alınmış bir video için **Mevcut videonun takibini sürdür** yalnızca mevcut işi sorgular. Sunucu yeniden başladığında kimliği bilinen videolar takip edilebilir; yarım kalan görsel işleri otomatik yeniden gönderilmez. Durdurmak, sağlayıcıda başlamış işlemin ücretini geri almaz.
 
-**OpenAI API kullanımı ayrıca ücretlidir; ChatGPT aboneliğine dahil değildir.** Model erişimi ve bakiye hesabına bağlıdır. Varsayılan video modeli `sora-2`, çıktı 720×1280 ve 12 saniyedir. Bu bağlantı tek başlangıç görseli alır; final görselini ayrı referans olarak gönderemez. Final durum promptta tarif edilir; geometri, yazılar ve sahne devamlılığı kontrol gerektirir. Çıktılar ayrı kliplerdir; tek uzun film halinde montaj bu sürüme dahil değildir.
+**OpenAI API kullanımı ayrıca ücretlidir; ChatGPT aboneliğine dahil değildir.** Model erişimi ve bakiye hesabına bağlıdır. Varsayılan video modeli `sora-2`, klip çıktısı 720×1280 ve seçili sahneye göre 4/8/12 saniyedir. Bu bağlantı tek başlangıç görseli alır; final görselini ayrı referans olarak gönderemez. Final durum promptta tarif edilir; geometri, yazılar ve sahne devamlılığı kontrol gerektirir. Final montaj FFmpeg ile yapılır; 1080×1920 dışa aktarma, 720p kaynağa yeni optik ayrıntı eklemez. Gerçek modelin üretim kalitesi ve sahneler arası birebir eşleşme garanti edilmez.
 
 ## Anahtarsız alternatif: tek HTML
 

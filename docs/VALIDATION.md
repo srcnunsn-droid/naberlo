@@ -27,3 +27,15 @@ API sözleşmesi OpenAI'nin resmi Python SDK kaynaklarındaki [videos.py](https:
 ## Güncel bilgi ve SITE araştırması
 
 `tests/project-research.test.ts` canlı arama araç sözleşmesini taklit ederek kaynaklı bilgilerin ve gerçek PNG referansının proje ön koşullarını açmasını doğrular. Hayali kaynak URL'leri, aynı kaynak ailesi, çelişki ve arama yapılmadan dönen model cevabı doğrulama sağlamaz. Görsel baytları model kontrolüne gönderilir; otomatik inceleme insan kontrolü olarak kaydedilmez. Eski çekim tarihinin korunduğu ve kesilen araştırmanın otomatik tekrar edilmediği test edilir. Bunlar kontrollü sağlayıcı testleridir; bu ortamda kullanıcı anahtarı olmadığı için gerçek ücretli 2026 araştırması veya fotoğraf kimlik/kalite doğruluğu test edilmiş değildir.
+
+## Referanstan final filme
+
+- `tests/story.test.ts`: altı tarifin bağımlılık grafiği, gerçek 4/8/12 saniye bütçesi, cadde ailesinin doğru geometri yönlendirmesi ve oyuncu/arma kapıları. Eski VSHOW ile yeni VS1–VS5 aileleri birbirine karışmaz.
+- `tests/movie.test.ts`: gerçek FFmpeg ile sesli kırmızı ve sessiz mavi klipleri sırayla birleştirir. Piksel örnekleriyle sıra, 1080×1920 boyut, süre, ses kanalı, Türkçe/% metin işleme, 12 referans karesi ve geçersiz kesme aralığı denetlenir.
+- `tests/film-automation.test.ts`: kontrollü OpenAI yanıtları ve gerçekten oynatılabilir sentetik MP4'lerle 4+8+4+4 saniyelik üretim zinciri çalışır, ardından gerçek 20 saniyelik final MP4 otomatik oluşturulur. İnsan kontrolü işareti uydurulmadığı doğrulanır. Model çağrıları taklittir; FFmpeg montajı gerçektir.
+- `tests/reference-analysis.test.ts`: gerçek JPEG baytlarının 12 zaman etiketiyle gönderilmesi, sesin analiz edilmediğinin talimatta belirtilmesi, video dışına taşan olay zamanlarının reddi, API hatası/yeniden başlatmada ücretli tekrar yapılmaması.
+- `tests/e2e/story.spec.ts`: Chromium'da film seçimi, Türkçe ayar kaydı, gerçek video yükleme ve 12 kare gösterimi; anahtarsız AI analizinin engellenmesi ve 390 px mobil ekran.
+
+Referans incelemesi kullanıcının yüklediği 10 kopyanın metadata ve 192 örnek karesine dayanır; kesintisiz izleme veya ses analizi değildir. Raporun olay aralıkları yaklaşık değerlerdir. Gerçek ücretli OpenAI video/kare analizi bu ortamda çalıştırılmadı. Sora'ya kaynak hareket videosu veya ayrı final kare gönderilemez; çıktı kalitesi ve sahne eşleşmesi kullanıcı incelemesi gerektirir.
+
+23 Ekim 2026 kontrol sonucu: 27 Node testi, 4 Chromium uygulama testi ve 1 çevrimdışı HTML testi geçti. Son önizleme uyumluluğu değişikliğinden sonra ilgili 7 Node testi ile Chromium önizleme testi ayrıca geçti. Normal/tek HTML derlemeleri, değişen dosyaların Prettier kontrolü ve kabuk sözdizimi kontrolü geçti. Depo genelindeki `format:check`, bu değişiklikten önce de biçim uyuşmazlığı bulunan `data/catalog-meta.json` ve `data/OPENFOOTBALL-LICENSE.md` dosyalarında uyarı verir; bu dosyalar değiştirilmedi.

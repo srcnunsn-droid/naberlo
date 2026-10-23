@@ -1,4 +1,5 @@
 import type { Asset, Candidate, Fact, FactKey, Project } from './types';
+import { directorNotes } from './story';
 import {
   cameras,
   families,
@@ -189,6 +190,12 @@ export function dependencies(p: Project, code: string): string[] {
   if (code === 'NB0') return ['D0'];
   if (code === 'N0') return ['NB0'];
   const pairs: Record<string, string[]> = {
+    SF0: ['NB0'],
+    SF1: ['SF0', 'NB0'],
+    SF2: ['SF1', 'CREST'],
+    SF3: ['SF2', 'PLAYER'],
+    SF4: ['SF2', 'NB0'],
+    SF5: ['SF3', 'NB0'],
     ST0: ['NB0'],
     STF: ['ST0', 'NB0'],
     TF0: ['NB0'],
@@ -229,17 +236,18 @@ export function blockers(
   };
   const needed: FactKey[] = ['club', 'stadium', 'city', 'geography'];
   if (code !== 'R0' && code !== 'E0') needed.push('colors', 'symbol');
-  if (['TF2', 'TF3'].includes(code)) needed.push('crest');
+  if (['TF2', 'TF3', 'SF2', 'SF3', 'SF4', 'SF5'].includes(code)) needed.push('crest');
   if (code === 'SHF' && decodeVariant('celebration', p.variant.celebration).method.id === 'crest')
     needed.push('crest');
-  if (code === 'TF3') needed.push('player');
+  if (['TF3', 'SF3', 'SF5'].includes(code)) needed.push('player');
   for (const key of needed)
     if (!isVerified(p.facts[key])) out.push(`${labels[key]} kaynakla doğrulanmalı.`);
   for (const dep of dependencies(p, code))
     if (!accepted(p, dep) && !planned.has(dep))
       out.push(`${dep} görseli yüklenmeli / üretilmeli ve kalite kontrolünden geçmeli.`);
   if (code === 'D0' && !p.selectedId) out.push('Bir stadyum tasarımı seçilmeli.');
-  if (code === 'TF3' && !p.playerConsent) out.push('Oyuncu seçimi açıkça onaylanmalı.');
+  if (['TF3', 'SF3', 'SF5'].includes(code) && !p.playerConsent)
+    out.push('Oyuncu seçimi açıkça onaylanmalı.');
   return out;
 }
 export function resolvedReferences(p: Project, code: string): Asset[] {
@@ -349,7 +357,9 @@ export function imagePrompt(p: Project, code: string): string {
               : code.startsWith('LZ')
                 ? 'F'
                 : 'A';
-  const camera = cameras.find((c) => c.id === cameraCode)!.text;
+  const camera = code.startsWith('SF')
+    ? 'Locked elevated camera centered along a verified long approach road toward the selected stadium. Preserve the road vanishing point, roadside buildings, coast/terrain and stadium size across all SF frames. This is a street celebration, not an interior-bowl view.'
+    : cameras.find((c) => c.id === cameraCode)!.text;
   let action = '';
   if (code === 'R0')
     action =
@@ -374,6 +384,12 @@ export function imagePrompt(p: Project, code: string): string {
     action = `Edit SH0 into ONE frozen peak instant of the selected show: ${show.method.text}. Composition: ${show.placement}; intensity: ${show.finish}. Preserve SH0 camera, accepted architecture and city. Freeze the visible peak, do not illustrate a timed sequence in one still. Shared wind, real supporting hands for fabric, grounded crowds and real effect sources.`;
   else {
     const descriptions: Record<string, string> = {
+      SF0: 'A dense supporter crowd lines a verified approach road to the accepted night stadium. The central road corridor is visible. A rolled fabric banner rests at the far end. No invented straight boulevard where the verified map has none.',
+      SF1: 'Edit SF0: one continuous long cloth banner in the verified club colors covers the central corridor, visibly supported by many hands. Side crowds remain visible. No crest or portrait yet.',
+      SF2: 'Edit SF1: the verified official crest occupies the center of the physically supported cloth, with correct proportions and only verified insignia. Keep fabric boundaries, folds and all city geometry.',
+      SF3: 'Edit SF2: the explicitly selected verified player portrait is printed on the same cloth. Follow the actual PLAYER reference and recorded kit/era. Do not imply a real transfer or event.',
+      SF4: 'Edit SF2: retain the exact crest cloth. Add club-colored theatrical smoke columns at separated clear side positions and fireworks above the stadium, away from spectators. This is fictional VFX.',
+      SF5: 'Edit SF3: retain the exact player cloth. Add club-colored theatrical smoke and distant stadium fireworks. Keep the portrait unobscured and the crowd and street unchanged.',
       ST0: 'An arriving supporter crowd on the verified approach, accepted stadium beyond, clear show sky. No active fireworks or flares.',
       STF: 'Edit ST0 at the peak of street celebration: club flags and scarves, handheld flares held at arm length, varied fireworks above the roof. Shared wind, real foot contact; preserve the actual street.',
       TF0: 'A packed bowl from its seating corner before the tifo; fabric remains folded, flags lowered. Preserve the selected roof and tier geometry.',
@@ -396,7 +412,7 @@ export function imagePrompt(p: Project, code: string): string {
     isVerified(p.facts.crest) && accepted(p, 'CREST')
       ? `Match official crest reference ${accepted(p, 'CREST')!.id} exactly; it is included among attached images.`
       : 'No verified crest image is attached: leave emblem panels blank; do not invent a crest or stars.';
-  return `STADIUM PRODUCTION ENGINE v43 — ${code}\nSingle still image; ${sheet ? 'ten-panel selection sheet' : 'portrait social frame'}.\n\nVERIFIED IDENTITY\n${identity(p)}\nReference date: ${p.referenceDate}.\n\nACTUAL REFERENCES\n${refText}\n${crest}\n\nVISIBLE STATE\n${action}\n\nCAMERA\n${sheet ? 'Identical collage camera across all ten cells, separate from Camera A.' : camera}\n\nPHOTOGRAPHY\n${night ? NIGHT : DAY}\n${PHOTO}\n\nINVARIANTS\nDo not import another club, city, palette, roof or unrelated text from a reference. Preserve accepted designs. Only verified facts above may appear. ${p.notes ? `User production notes (subordinate to verified facts and continuity): ${p.notes}` : ''}`;
+  return `STADIUM PRODUCTION ENGINE v43 — ${code}\n${directorNotes(p, code, true)}\nSingle still image; ${sheet ? 'ten-panel selection sheet' : 'portrait social frame'}.\n\nVERIFIED IDENTITY\n${identity(p)}\nReference date: ${p.referenceDate}.\n\nACTUAL REFERENCES\n${refText}\n${crest}\n\nVISIBLE STATE\n${action}\n\nCAMERA\n${sheet ? 'Identical collage camera across all ten cells, separate from Camera A.' : camera}\n\nPHOTOGRAPHY\n${night ? NIGHT : DAY}\n${PHOTO}\n\nINVARIANTS\nDo not import another club, city, palette, roof or unrelated text from a reference. Preserve accepted designs. Only verified facts above may appear. ${p.notes ? `User production notes (subordinate to verified facts and continuity): ${p.notes}` : ''}`;
 }
 export const clipPairs = [
   ['V1', 'Söküm', 'R0', 'E0'],
@@ -411,14 +427,20 @@ export const clipPairs = [
   ['V11', 'Şehir kutlaması', 'CT0', 'CTF'],
   ['V14', 'Havai fişek finali', 'FW0', 'FWF'],
   ['VSHOW', 'Özel koreografi', 'SH0', 'SHF'],
+  ['VS1', 'Cadde renk tifosu', 'SF0', 'SF1'],
+  ['VS2', 'Cadde arma tifosu', 'SF1', 'SF2'],
+  ['VS3', 'Cadde oyuncu tifosu', 'SF2', 'SF3'],
+  ['VS4', 'Cadde arma finali', 'SF2', 'SF4'],
+  ['VS5', 'Cadde oyuncu finali', 'SF3', 'SF5'],
 ];
 export function videoPrompts(p: Project) {
   return clipPairs.map(([id, title, start, end]) => {
     const a = accepted(p, start),
       b = accepted(p, end);
     const ready = !!a && !!b;
-    const method =
-      id === 'VSHOW'
+    const method = /^VS[1-5]$/.test(id)
+      ? 'Supporters progressively roll and unfurl the next cloth face from the far end toward the foreground, revealing the exact accepted final print. For a finale retain the same cloth while smoke rises and fireworks appear above the distant stadium. No camera motion or changing street geometry.'
+      : id === 'VSHOW'
         ? decodeVariant('celebration', p.variant.celebration).text
         : id === 'V1'
           ? decodeVariant('removal', p.variant.removal).text
@@ -441,7 +463,7 @@ export function videoPrompts(p: Project) {
     const extra = ['V10', 'V14'].includes(id)
       ? `Secondary choreography rhythm: ${decodeVariant('celebration', p.variant.celebration).rhythm.text}. Do not replace the required action or the accepted final image with a different effect.`
       : '';
-    const prompt = `${ready ? `INPUTS: @image-1 = ${a!.filename} (${start}); @image-2 = ${b!.filename} (${end}).` : `DRAFT — Missing accepted ${!a ? start : ''}${!a && !b ? ' and ' : ''}${!b ? end : ''}; no model input tags assigned.`}\nTARGET: Seedance on Higgsfield; verify the account's actual model/version supports first/end frames, 10 seconds and 9:16 before rendering. This is a video prompt, not a rendered clip.\n\nFORMAT: 10-second 9:16 continuous shot. ${id === 'V14' ? 'Slow 15–30 degree aerial orbit only if the accepted endpoint perspective supports it; otherwise a locked camera.' : 'Camera locked to the accepted opening composition; no pan, zoom, tilt or shake.'}\nVERIFIED IDENTITY: ${identity(p)}\nOPENING: Exactly the accepted ${start} state and camera. FINAL: Exactly ${end}, with the same selected stadium geometry, roof state and city anchors.\nACTION: ${method} ${extra}\nTIMELINE: 0.0–0.8 s: first visible causal action. 0.8–6.5 s: ordered main progression with physical contact and supported parts. 6.5–8.5 s: complete the approved endpoint. 8.5–10.0 s: readable hold with only residual secondary motion. If all causes cannot be represented in the selected engine's duration, split at stable states; never hide missing cleanup or assembly behind a jump cut.\nLIGHT: ${night ? NIGHT : DAY}\nAUDIO: ${id === 'V1' ? 'contact-specific friction, weight, fragments and the selected clearing tool' : id === 'V2' ? 'weighted contact, joint clicks, sliding rails and final mechanical locks' : 'natural crowd roar, cloth movement and sound tied to visible effects'}. No copyrighted anthem, invented dialogue or unrequested captions.\nCONTINUITY: ${id === 'V2' ? 'Full-size pitch first, plaza second, stadium and roof last. Hand exits before expansion. ' : ''}Fixed city geometry, plausible human proportions, coherent shared wind. No identity swaps, crest mutation, floating roof, geometry flicker or instant morph. ${PHOTO}`;
+    const prompt = `${ready ? `INPUTS: @image-1 = ${a!.filename} (${start}); @image-2 = ${b!.filename} (${end}).` : `DRAFT — Missing accepted ${!a ? start : ''}${!a && !b ? ' and ' : ''}${!b ? end : ''}; no model input tags assigned.`}\nTARGET: Seedance on Higgsfield; verify the account's actual model/version supports first/end frames, 10 seconds and 9:16 before rendering. This is a video prompt, not a rendered clip.\n\nFORMAT: 10-second 9:16 continuous shot. ${id === 'V14' ? 'Slow 15–30 degree aerial orbit only if the accepted endpoint perspective supports it; otherwise a locked camera.' : 'Camera locked to the accepted opening composition; no pan, zoom, tilt or shake.'}\nVERIFIED IDENTITY: ${identity(p)}\nOPENING: Exactly the accepted ${start} state and camera. FINAL: Exactly ${end}, with the same selected stadium geometry, roof state and city anchors.\nACTION: ${method} ${extra}\n${directorNotes(p, id)}\nTIMELINE: 0.0–0.8 s: first visible causal action. 0.8–6.5 s: ordered main progression with physical contact and supported parts. 6.5–8.5 s: complete the approved endpoint. 8.5–10.0 s: readable hold with only residual secondary motion. If all causes cannot be represented in the selected engine's duration, split at stable states; never hide missing cleanup or assembly behind a jump cut.\nLIGHT: ${night ? NIGHT : DAY}\nAUDIO: ${id === 'V1' ? 'contact-specific friction, weight, fragments and the selected clearing tool' : id === 'V2' ? 'weighted contact, joint clicks, sliding rails and final mechanical locks' : 'natural crowd roar, cloth movement and sound tied to visible effects'}. No copyrighted anthem, invented dialogue or unrequested captions.\nCONTINUITY: ${id === 'V2' ? 'Full-size pitch first, plaza second, stadium and roof last. Hand exits before expansion. ' : ''}Fixed city geometry, plausible human proportions, coherent shared wind. No identity swaps, crest mutation, floating roof, geometry flicker or instant morph. ${PHOTO}`;
     return { id, title, start, end, ready, prompt };
   });
 }

@@ -410,4 +410,16 @@ export const stages = [
     name: 'Özel gösteri finali',
     description: 'Seçili kutlama kombinasyonunun eşleşmiş finali.',
   },
+  ...[
+    ['SF0', 'Cadde tifo başlangıcı'],
+    ['SF1', 'Cadde renk tifosu'],
+    ['SF2', 'Cadde arma tifosu'],
+    ['SF3', 'Cadde oyuncu tifosu'],
+    ['SF4', 'Cadde arma finali'],
+    ['SF5', 'Cadde oyuncu finali'],
+  ].map(([id, name]) => ({
+    id,
+    name,
+    description: 'Aynı gerçek cadde, kumaş, taraftarlar ve sabit kamera.',
+  })),
 ];

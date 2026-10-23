@@ -184,18 +184,20 @@ export function AutomationPanel({
               />
               Videoları da üret
             </label>
-            <label className="automation-check">
-              <input
-                type="checkbox"
-                checked={options.includePlayer}
-                disabled={!!active}
-                onChange={(e) => {
-                  setOptions((o) => ({ ...o, includePlayer: e.target.checked }));
-                  setConfirmed(false);
-                }}
-              />
-              Oyuncu tifosunu dahil et
-            </label>
+            {!project.story && (
+              <label className="automation-check">
+                <input
+                  type="checkbox"
+                  checked={options.includePlayer}
+                  disabled={!!active}
+                  onChange={(e) => {
+                    setOptions((o) => ({ ...o, includePlayer: e.target.checked }));
+                    setConfirmed(false);
+                  }}
+                />
+                Oyuncu tifosunu dahil et
+              </label>
+            )}
           </>
         )}
       </div>
@@ -215,8 +217,12 @@ export function AutomationPanel({
       )}
       <p className="small">
         En fazla <strong>{plan.imageRequests} görsel</strong> ve{' '}
-        <strong>{plan.videoRequests} adet 12 saniyelik video</strong> isteği. Mevcut geçerli
-        çıktılar tekrar üretilmez. API ücretleri OpenAI hesabına yansır.
+        <strong>
+          {project.story
+            ? `${plan.videoRequests} klip · toplam ${plan.videoSeconds} saniye`
+            : `${plan.videoRequests} adet 12 saniyelik video`}
+        </strong>{' '}
+        isteği. Mevcut geçerli çıktılar tekrar üretilmez. API ücretleri OpenAI hesabına yansır.
       </p>
       <p className="small muted">
         Ara görseller otomatik kullanılır; tamamlanan çıktılar kalite kontrolü bekler. Sora
