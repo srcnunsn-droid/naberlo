@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Globe2, RefreshCw } from 'lucide-react';
 import type { Project } from '../../shared/types';
 import { api, post } from '../api';
+import { researchMessage } from '../../shared/research-message';
 
 export function ResearchPanel({
   project,
@@ -72,7 +73,7 @@ export function ResearchPanel({
       )}
       {project.research && (
         <div role="status">
-          <p>{project.research.message}</p>
+          <p>{researchMessage(project.research.message)}</p>
           <span className="small muted">
             Araştırma: {new Date(project.research.startedAt).toLocaleString('tr-TR')} ·{' '}
             {project.research.status === 'running'

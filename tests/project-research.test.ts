@@ -6,6 +6,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { fixture } from './fixtures';
 import { blockers } from '../shared/engine';
+import { researchMessage } from '../shared/research-message';
 
 let dir: string, research: typeof import('../server/project-research');
 before(async () => {
@@ -232,4 +233,76 @@ test('persisted research starts once and leaves a visible failure instead of a b
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test('mixed citation markers and malformed source strings do not abort valid research facts', async () => {
+  const r = report();
+  r.clubQid = '';
+  r.stadiumQid = '';
+  r.facts[0].sources = [`[Kulüp](${urls[0]})`, `<${urls[1]}>`];
+  r.facts[1].sources = ['turn0search0', urls[1]];
+  r.facts[2].sources = ['[1]', 'not a url', 'https://invented.example'];
+  let calls = 0;
+  const result = await research.researchProject(project(), async () => {
+    calls++;
+    const text = JSON.stringify(r),
+      start = text.indexOf('turn0search0');
+    return Response.json({
+      status: 'completed',
+      output: [
+        {
+          type: 'web_search_call',
+          status: 'completed',
+          action: { sources: urls.map((url) => ({ url })) },
+        },
+        {
+          type: 'message',
+          content: [
+            {
+              type: 'output_text',
+              text,
+              annotations: [
+                {
+                  type: 'url_citation',
+                  url: urls[0],
+                  start_index: start,
+                  end_index: start + 'turn0search0'.length,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+  });
+  assert.equal(calls, 1, 'repair is local and does not buy another search');
+  assert.equal(result.facts.club.status, 'verified');
+  assert.equal(result.facts.stadium.status, 'verified');
+  assert.equal(result.facts.city.status, 'unverified');
+  assert.equal(result.facts.colors.status, 'verified');
+  assert.ok(result.warnings.some((w) => w.includes('kaynak işareti')));
+  assert.deepEqual(research.resolveResearchSources(['turn0search0'], new Set(urls)), []);
+  assert.deepEqual(
+    research.resolveResearchSources(
+      ['turn0search0'],
+      new Set(urls),
+      new Map([['turn0search0', new Set(urls)]]),
+    ),
+    [],
+  );
+  const oldError =
+    '[{"validation":"url","code":"invalid_string","message":"Invalid url","path":["facts",0,"sources",0]}]';
+  assert.doesNotMatch(researchMessage(oldError), /invalid_string|"path"/);
+  assert.match(researchMessage(oldError), /Mevcut|mevcut/);
+});
+
+test('malformed research structure returns a readable message instead of raw validation data', async () => {
+  await assert.rejects(
+    () => research.researchProject(project(), async () => output({ facts: 'broken' }, true)),
+    (error) => {
+      assert.match((error as Error).message, /beklenen bilgi biçiminde/);
+      assert.doesNotMatch((error as Error).message, /invalid_type|"path"/);
+      return true;
+    },
+  );
 });
