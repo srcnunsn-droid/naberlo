@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: naberlo-stadium-studio
+    runtime: node
+    branch: feat/stadium-production-studio
+    plan: starter
+    numInstances: 1
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: STADIUM_DATA_DIR
+        value: /var/data/naberlo
+      - key: STADIUM_ACCESS_TOKEN
+        generateValue: true
+    disk:
+      name: stadium-data
+      mountPath: /var/data
+      sizeGB: 1

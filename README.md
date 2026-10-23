@@ -2,7 +2,23 @@
 
 Türkçe arayüzlü, kalıcı projelerle çalışan stadyum prodüksiyon uygulaması. Kullanıcının **STADIUM PRODUCTION ENGINE MASTER v43** iş akışını kulüp araştırması, referans görselleri, mimari planlama, görsel üretimi ve video prompt paketlerine dönüştürür.
 
-## Başlatma
+## Tarayıcıdan, bilgisayara kurmadan açma
+
+GitHub sayfası uygulamanın kaynak kodudur; çalışan uygulama adresi değildir. Codex bulut ortamını yayınlamak da uygulamaya herkese açık bir web adresi oluşturmaz.
+
+[Render panelini aç](https://dashboard.render.com/blueprints). Yayınlama ayarları bu depodaki `render.yaml` dosyasında hazır:
+
+1. Render hesabına gir, **New Blueprint Instance** ile GitHub hesabındaki `srcnunsn-droid/naberlo` deposunu bağla.
+2. Dal olarak **`feat/stadium-production-studio`** seç. `main` dalında uygulama bulunmuyor.
+3. Plan ve disk ücretini inceleyip dağıtımı başlat. Bu yapılandırma **ücretli Starter sunucu ve 1 GB kalıcı disk** kullanır; ücret Render ekranında gösterilir. Kalıcı disk, projelerin ve yüklenen görsellerin yeniden başlatmada kaybolmasını önler.
+4. Servis **Live** olduğunda Render'ın verdiği **`https://…onrender.com`** adresini aç. Telefonda da aynı bağlantıyı kullanabilirsin.
+5. Giriş ekranında, Render servisinin **Environment** bölümünde otomatik oluşturulan **`STADIUM_ACCESS_TOKEN`** değerini kullan. Bu değeri sohbet veya GitHub üzerinden paylaşma.
+
+Görsel üretimini sonradan açmak için Render'ın aynı Environment bölümüne `STADIUM_OPENAI_API_KEY` ekleyip değişikliği dağıt. Bu anahtar olmadan katalog, proje, prompt, görsel yükleme ve dışa aktarma çalışır. Render hesabı ve dağıtım tamamlanana kadar canlı uygulama bağlantısı oluşmaz.
+
+`/healthz` yalnızca servis durumunu bildirir; proje API'si ve görseller erişim anahtarıyla korunur. SQLite nedeniyle tek sunucu kullanılır. Disk kapasitesini kullanımına göre artırabilirsin.
+
+## Bilgisayarda başlatma
 
 Node.js **24+** gerekir. SQLite Node içinde gelir; ayrı veritabanı servisi gerekmez.
 

@@ -52,6 +52,8 @@ app.use((req, res, next) => {
   }
   next();
 });
+// Hosting health probes must work without the private studio access token.
+app.get('/healthz', (_req, res) => res.json({ ok: true }));
 app.use(['/api', '/media'], (req, res, next) => {
   const token = process.env.STADIUM_ACCESS_TOKEN;
   if (!token) return next();
