@@ -1,0 +1,17 @@
+{
+  "total": 2777,
+  "countries": 91,
+  "regions": [
+    "africa",
+    "asia",
+    "caribbean",
+    "central-america",
+    "europe",
+    "middle-east",
+    "north-america",
+    "south-america"
+  ],
+  "source": "https://github.com/openfootball/clubs",
+  "revision": "ae3800227c449447b3a337fc0aac79a8f02f4c8b",
+  "importedAt": "2026-10-23T10:41:06.676Z"
+}
