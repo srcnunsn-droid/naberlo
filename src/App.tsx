@@ -78,6 +78,8 @@ import {
 } from '../shared/engine';
 import { api, post, download, ApiError, authHeaders } from './api';
 import { Stadium } from './components/Stadium';
+import { StandaloneBar } from './components/StandaloneBar';
+const standalone = import.meta.env.VITE_STANDALONE === '1';
 
 type Page = 'home' | 'clubs' | 'studio' | 'cameras' | 'variations' | 'assets' | 'settings';
 type Status = {
@@ -345,6 +347,7 @@ export default function App() {
       (p) => {
         setProject(p);
         setPage('studio');
+        setMobile(false);
       },
     );
   }
@@ -558,6 +561,15 @@ export default function App() {
           </div>
         </header>
         <main>
+          {standalone && (
+            <StandaloneBar
+              onRestore={() => {
+                setProject(null);
+                setPage('home');
+                void refresh();
+              }}
+            />
+          )}
           {error && (
             <div className="error-banner" role="alert">
               <AlertCircle size={19} />
@@ -1048,17 +1060,25 @@ export default function App() {
               {status?.provider.configured ? 'Bağlı' : 'Bağlantı gerekli'}
             </Badge>
           </div>
-          <p>
-            Bu işlem sağlayıcıya <strong>{genCodes.length} görsel düzenleme isteği</strong> gönderir
-            ve hesabında ücret oluşturabilir. Sonuç otomatik kabul edilmez; görsel kalite kontrolüne
-            gelir.
-          </p>
+          {!standalone && (
+            <p>
+              Bu işlem sağlayıcıya <strong>{genCodes.length} görsel düzenleme isteği</strong>{' '}
+              gönderir ve hesabında ücret oluşturabilir. Sonuç otomatik kabul edilmez; görsel kalite
+              kontrolüne gelir.
+            </p>
+          )}
           {!status?.provider.configured && (
             <div className="callout amber">
               <AlertCircle size={19} />
               <span>
-                Sunucuda <code>STADIUM_OPENAI_API_KEY</code> tanımla. Alternatif olarak promptu
-                dışarıda çalıştırıp görseli yükleyebilirsin.
+                {standalone ? (
+                  'Bu tek HTML sürümü otomatik AI görsel üretmez. Promptu kopyala, seçtiğin görsel aracında kullan ve sonucu buraya yükle.'
+                ) : (
+                  <>
+                    Sunucuda <code>STADIUM_OPENAI_API_KEY</code> tanımla. Alternatif olarak promptu
+                    dışarıda çalıştırıp görseli yükleyebilirsin.
+                  </>
+                )}
               </span>
             </div>
           )}
@@ -1338,7 +1358,12 @@ function ClubAtlas({
           ))}
         </select>
         <button
-          disabled={query.length < 2 || liveBusy}
+          disabled={standalone || query.length < 2 || liveBusy}
+          title={
+            standalone
+              ? 'Tek HTML sürümünde yerel katalog ve JSON içe aktarma kullanılır.'
+              : undefined
+          }
           className="button"
           onClick={async () => {
             setLiveBusy(true);
@@ -2618,51 +2643,68 @@ function Settings({
         </button>
       </div>
       <div className="settings-grid">
-        <section className="panel">
-          <div className="section-heading">
+        {standalone ? (
+          <section className="panel">
             <h2>
-              <Sparkles size={20} />
-              Görsel üretimi
+              <Sparkles size={20} /> Görsel ve prompt çalışma alanı
             </h2>
-            <Badge tone={status?.provider.configured ? 'green' : 'amber'}>
-              {status?.provider.configured ? 'Bağlı' : 'Anahtar gerekli'}
-            </Badge>
-          </div>
-          <p>
-            OpenAI Images düzenleme bağlantısı, kabul edilmiş referansları gerçek dosyalarıyla
-            gönderir. Her üretim tek bir görseldir ve ayrıca kalite kontrolü gerektirir.
-          </p>
-          <dl className="settings-list">
-            <div>
-              <dt>Sağlayıcı</dt>
-              <dd>OpenAI Images</dd>
+            <p>
+              Bu dosya sunucusuz çalışır. Tasarım planlarını ve promptları hazırla; seçtiğin görsel
+              aracında ürettiğin sonuçları PNG, JPEG veya WebP olarak yükle.
+            </p>
+            <p>
+              Otomatik AI görsel üretimi ve canlı internet araştırması bu sürümde bulunmuyor. API
+              anahtarı girmen gerekmez.
+            </p>
+            <Badge tone="green">Promptlar, görsel yükleme ve ZIP dışa aktarma aktif</Badge>
+          </section>
+        ) : (
+          <section className="panel">
+            <div className="section-heading">
+              <h2>
+                <Sparkles size={20} />
+                Görsel üretimi
+              </h2>
+              <Badge tone={status?.provider.configured ? 'green' : 'amber'}>
+                {status?.provider.configured ? 'Bağlı' : 'Anahtar gerekli'}
+              </Badge>
             </div>
-            <div>
-              <dt>Model</dt>
-              <dd>{status?.provider.model}</dd>
+            <p>
+              OpenAI Images düzenleme bağlantısı, kabul edilmiş referansları gerçek dosyalarıyla
+              gönderir. Her üretim tek bir görseldir ve ayrıca kalite kontrolü gerektirir.
+            </p>
+            <dl className="settings-list">
+              <div>
+                <dt>Sağlayıcı</dt>
+                <dd>OpenAI Images</dd>
+              </div>
+              <div>
+                <dt>Model</dt>
+                <dd>{status?.provider.model}</dd>
+              </div>
+              <div>
+                <dt>Doğal çıktı</dt>
+                <dd>{status?.provider.size}</dd>
+              </div>
+              <div>
+                <dt>Dikey dışa aktarma</dt>
+                <dd>1080 × 1920 · kırpmadan kenar doldurma</dd>
+              </div>
+            </dl>
+            <div className="callout">
+              <LockKeyhole size={18} />
+              <span>
+                API anahtarı sunucuda tutulur, tarayıcıya gönderilmez. Yerel kullanımda{' '}
+                <code>.env</code> dosyasına; bulut kullanımında güvenli ortam ayarlarına ekle.
+              </span>
             </div>
-            <div>
-              <dt>Doğal çıktı</dt>
-              <dd>{status?.provider.size}</dd>
-            </div>
-            <div>
-              <dt>Dikey dışa aktarma</dt>
-              <dd>1080 × 1920 · kırpmadan kenar doldurma</dd>
-            </div>
-          </dl>
-          <div className="callout">
-            <LockKeyhole size={18} />
-            <span>
-              API anahtarı sunucuda tutulur, tarayıcıya gönderilmez. Yerel kullanımda{' '}
-              <code>.env</code> dosyasına; bulut kullanımında güvenli ortam ayarlarına ekle.
-            </span>
-          </div>
-          <pre>STADIUM_OPENAI_API_KEY=…{'\n'}OPENAI_IMAGE_MODEL=gpt-image-1</pre>
-          <p className="small muted">
-            Modeli yalnızca hesabında çoklu görsel düzenleme ve seçili boyut destekleniyorsa
-            değiştir. Ücretli üretim bu bağlantının testi için otomatik çalıştırılmaz.
-          </p>
-        </section>
+            <pre>STADIUM_OPENAI_API_KEY=…{'\n'}OPENAI_IMAGE_MODEL=gpt-image-1</pre>
+            <p className="small muted">
+              Modeli yalnızca hesabında çoklu görsel düzenleme ve seçili boyut destekleniyorsa
+              değiştir. Ücretli üretim bu bağlantının testi için otomatik çalıştırılmaz.
+            </p>
+          </section>
+        )}
         <section className="panel">
           <div className="section-heading">
             <h2>
@@ -2680,8 +2722,10 @@ function Settings({
             içerebilir. Üretimde kullanılacak bilgiler resmi kaynaklarla ayrıca doğrulanır.
           </p>
           <p>
-            Dünyadaki bütün kulüplerin eksiksiz ve güncel olduğu iddia edilmez. Canlı Wikidata
-            araştırması ve JSON içe aktarma ile yeni kayıtlar eklenebilir.
+            Dünyadaki bütün kulüplerin eksiksiz ve güncel olduğu iddia edilmez.{' '}
+            {standalone
+              ? 'JSON içe aktarma ile yeni kayıtlar eklenebilir.'
+              : 'Canlı Wikidata araştırması ve JSON içe aktarma ile yeni kayıtlar eklenebilir.'}
           </p>
           <div className="row">
             <button className="button" onClick={onImport}>
@@ -2721,9 +2765,15 @@ function Settings({
             Kalıcı proje & devamlılık
           </h2>
           <p>
-            Projeler SQLite veritabanında; görseller sunucunun <code>.data/media</code> klasöründe
-            saklanır. ZIP paketi proje kaydını, promptları, görselleri ve kaynak master dosyasını
-            içerir.
+            {standalone ? (
+              'Projeler ve görseller bu tarayıcının kayıt alanında saklanır. HTML dosyasının içine yazılmaz. Başka cihaza geçerken Yedeği indir ve Yedek aç düğmelerini kullan. Tarayıcı verilerini silmek veya farklı tarayıcı/dosya konumundan açmak eski kayıtlarına erişimini kaldırabilir.'
+            ) : (
+              <>
+                Projeler SQLite veritabanında; görseller sunucunun <code>.data/media</code>{' '}
+                klasöründe saklanır. ZIP paketi proje kaydını, promptları, görselleri ve kaynak
+                master dosyasını içerir.
+              </>
+            )}
           </p>
           <p>
             Görsel üretimi sonrası 6 maddelik insan kontrolü gerekir. Referans değiştiğinde bağlı

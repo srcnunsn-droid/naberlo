@@ -2,7 +2,19 @@
 
 Türkçe arayüzlü, kalıcı projelerle çalışan stadyum prodüksiyon uygulaması. Kullanıcının **STADIUM PRODUCTION ENGINE MASTER v43** iş akışını kulüp araştırması, referans görselleri, mimari planlama, görsel üretimi ve video prompt paketlerine dönüştürür.
 
-## İş bilgisayarında veya telefonda kurulum yapmadan açma
+## En kolay açılış: tek HTML, kurulum yok
+
+[HTML sürümünü indir](https://github.com/srcnunsn-droid/naberlo/raw/refs/heads/feat/stadium-production-studio/NABERLO-HTML.zip)
+
+ZIP içindeki **NABERLO.html** dosyasını dışarı çıkar ve çift tıkla. Chrome veya Edge ile açılır. Node.js, terminal, GitHub Codespaces, sunucu veya abonelik gerekmez. HTML'nin tüm kodu, kulüp kataloğu ve yazı tipleri tek dosyanın içindedir.
+
+Bu sürümde kulüp arama/JSON içe aktarma, proje kaydı, mimari planlar, kamera ve varyasyonlar, görsel yükleme ve kalite kontrolü, görsel/video promptları, ZIP dışa aktarma çalışır. **Otomatik AI görsel üretimi ve canlı internet araştırması bu HTML sürümünde yoktur.** Plan şemaları üretilmiş stadyum fotoğrafları değildir.
+
+Projeler HTML dosyasına değil, **kullandığın tarayıcıya** kaydedilir. İş bilgisayarından ayrılmadan **Yedeği indir** düğmesine bas. Kendi bilgisayarında aynı HTML'yi açıp **Yedek aç** ile JSON dosyanı yükle. Tarayıcı verilerini silmek veya dosyayı başka konuma taşımak eski kayıtlara erişimini kaldırabilir. Telefona otomatik eşitleme yoktur; mobil dosya görüntüleyicileri HTML uygulamalarını her zaman çalıştırmaz. Windows Chrome/Edge hedeflenmiştir.
+
+Geliştirici için yeniden üretme: `npm run build:html`. Bu komut `NABERLO.html` ve indirilebilir `NABERLO-HTML.zip` oluşturur. Kontrol: `npm run test:html`.
+
+## Alternatif: GitHub üzerinden tarayıcıda sunucu sürümü
 
 [Tarayıcıda Naberlo başlat](https://codespaces.new/srcnunsn-droid/naberlo?ref=feat%2Fstadium-production-studio)
 

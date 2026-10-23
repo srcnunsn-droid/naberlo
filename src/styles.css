@@ -3582,3 +3582,22 @@ details summary {
     font-size: 9px;
   }
 }
+.standalone-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  border: 1px solid #445330;
+  border-radius: 12px;
+  background: #1b2318;
+}
+.standalone-bar p {
+  color: #bec5b5;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 6px 0 0;
+  max-width: 600px;
+}

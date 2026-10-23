@@ -9,9 +9,11 @@
   "scripts": {
     "dev": "concurrently -k -n api,web \"tsx watch server/index.ts\" \"vite --host 127.0.0.1\"",
     "build": "tsc --noEmit && vite build",
+    "build:html": "tsc --noEmit && node scripts/build-standalone.mjs",
     "start": "tsx server/index.ts",
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
+    "test:html": "playwright test --config playwright.standalone.config.ts",
     "typecheck": "tsc --noEmit",
     "catalog:import": "tsx scripts/import-clubs.ts",
     "format": "prettier --write .",

@@ -15,6 +15,8 @@ export const authHeaders = () =>
       >)
     : {};
 export async function api<T>(url: string, options: RequestInit = {}): Promise<T> {
+  if (import.meta.env.VITE_STANDALONE === '1')
+    return (await import('./standalone')).request<T>(url, options);
   const r = await fetch(url, {
     ...options,
     headers: {
@@ -33,6 +35,8 @@ export async function api<T>(url: string, options: RequestInit = {}): Promise<T>
 export const post = <T>(url: string, body: unknown = {}) =>
   api<T>(url, { method: 'POST', body: JSON.stringify(body) });
 export async function download(url: string, name: string) {
+  if (import.meta.env.VITE_STANDALONE === '1')
+    return (await import('./standalone')).exportProject(url, name);
   const r = await fetch(url, { headers: authHeaders() });
   if (!r.ok) throw new Error('Paket indirilemedi.');
   const blob = await r.blob();

@@ -6,3 +6,5 @@ test-results/
 package-lock.json
 data/clubs.json
 docs/STADIUM-MASTER-v43.txt
+.standalone/
+NABERLO.html

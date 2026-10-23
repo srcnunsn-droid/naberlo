@@ -7,3 +7,9 @@ Uygulamanın doğrulaması üç düzeyde yapılır:
 3. **Dış servisler:** Wikidata canlı arama ve kulüp ayrıntısı ağ üzerinden ayrı kontrol edilir. OpenAI Images için gerçek ücretli render, kullanıcı anahtarı olmadan çalıştırılmaz. Test sağlayıcısı, gerçek PNG referanslarını multipart istekte alır ve kontrollü PNG yanıtı verir; bu bir model kalitesi testi değildir.
 
 Testler asıl `.data` çalışma alanından ayrı geçici dizinlerde çalışır. Test görselleri renk bloklarıdır, gerçek stadyum üretimi değildir. Gerçek üretim çıktıları kullanıcı tarafından görsel kalite kontrolüne alınmalıdır.
+
+## Tek HTML sürümü
+
+`npm run build:html && npm run test:html` ile derlenmiş tek dosyanın baytları Chromium'a verilir. Cloud Chromium yönetim politikası `file://` gezinmesini engellediği için test, HTML'yi yalnızca test yönlendirmesi üzerinden sunar; bir uygulama sunucusu çalıştırmaz. Tarayıcı çevrimdışıdır, ek HTTP/API/JS/CSS/yazı tipi isteği sayısının sıfır olduğu doğrulanır. Gerçek Windows çift tıklaması bu Linux ortamında test edilmemiştir.
+
+Test yerel katalog aramasını, proje ve yeni seri oluşturmayı, gerçek PNG yükleme/kabulünü, yenileme sonrası kayıtları, ZIP indirmeyi, JSON yedeğini ayrı bir tarayıcı oturumuna geri yüklemeyi ve mobil ekran taşmasını kontrol eder. Tarayıcı kayıtları IndexedDB kullanır; otomatik AI üretimi ve canlı araştırma tek HTML sürümünde sunulmaz.
